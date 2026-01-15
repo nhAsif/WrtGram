@@ -240,9 +240,9 @@ jobs:
         uses: slord399/action-automatic-releases@v1.0.1
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          automatic_release_tag: wrtgram-${{ needs.prepare.outputs.version }}-${{ needs.prepare.outputs.release }}-${{ needs.prepare.outputs.sha }}
+          automatic_release_tag: v${{ needs.prepare.outputs.version }}
           prerelease: false
-          title: WrtGram Release ${{ needs.prepare.outputs.version }}-${{ needs.prepare.outputs.release }} (${{ needs.prepare.outputs.sha }})
+          title: WrtGram Release v${{ needs.prepare.outputs.version }}
           files: |
             ./repo/packages/*.ipk
             ./repo/packages/Packages
