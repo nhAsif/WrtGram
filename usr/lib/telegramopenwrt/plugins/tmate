@@ -1,0 +1,45 @@
+#!/bin/sh
+# tmate plugin for TelegramOpenWrt
+
+# Log file for debugging
+LOG_FILE="/tmp/tmate_plugin.log"
+echo "tmate plugin started" > $LOG_FILE
+
+# Ensure any old tmate session is killed before starting a new one
+tmate -S /tmp/tmate.sock kill-session >/dev/null 2>&1
+echo "Attempted to kill any stale tmate session" >> $LOG_FILE
+
+# Check if tmate is installed
+if ! command -v tmate >/dev/null 2>&1; then
+    echo "Error: tmate is not installed or not in the PATH."
+    echo "tmate command not found" >> $LOG_FILE
+    exit 1
+fi
+echo "tmate command found" >> $LOG_FILE
+
+# Create a new detached tmate session, redirecting stderr to stdout
+tmate -S /tmp/tmate.sock new-session -d 2>&1
+echo "tmate new-session command executed" >> $LOG_FILE
+
+# Wait a moment for the session to be ready
+sleep 2
+
+# Get the SSH connection string, redirecting stderr to stdout
+TMATE_SSH=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' 2>&1)
+echo "tmate display command executed, output: $TMATE_SSH" >> $LOG_FILE
+
+if [ -n "$TMATE_SSH" ]; then
+    echo "tmate session: $TMATE_SSH (Closes in 10 minutes)"
+
+    # Run the session timeout and kill command in the background
+    (
+        sleep 600
+        tmate -S /tmp/tmate.sock kill-session
+        echo "tmate session killed" >> $LOG_FILE
+    ) >/dev/null 2>&1 &
+    echo "Background killer process started" >> $LOG_FILE
+else
+    echo "Failed to create tmate session."
+    echo "Failed to create tmate session. TMATE_SSH was empty." >> $LOG_FILE
+fi
+

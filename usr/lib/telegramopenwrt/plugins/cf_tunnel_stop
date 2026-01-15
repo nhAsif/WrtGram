@@ -1,0 +1,14 @@
+#!/bin/sh
+
+PID_TO_KILL=$(ps w | grep "[c]loudflared tunnel" | awk '{print $1}')
+
+if [ -n "$PID_TO_KILL" ]; then
+    kill -9 "$PID_TO_KILL"
+    echo "Cloudflare tunnel stopped."
+    # Also remove the PID file if it exists, to keep state clean.
+    if [ -f "/tmp/cf_tunnel.pid" ]; then
+        rm "/tmp/cf_tunnel.pid"
+    fi
+else
+    echo "Cloudflare tunnel is not running."
+fi

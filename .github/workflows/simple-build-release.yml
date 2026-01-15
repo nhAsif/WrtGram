@@ -1,0 +1,242 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - '.editorconfig'
+      - '.gitignore'
+      - 'LICENSE'
+      - 'README.md'
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.gh.outputs.version }}
+      release: ${{ steps.gh.outputs.release }}
+      sha: ${{ steps.gh.outputs.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: GH
+        id: gh
+        env:
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          # Extract version from Makefile (or use defaults)
+          if [ -f "Makefile" ]; then
+            echo "version=$(cat Makefile | grep "PKG_VERSION" | head -1 | sed 's/.*:= *//' | sed 's/ *$//')" >> $GITHUB_OUTPUT
+            echo "release=$(cat Makefile | grep "PKG_RELEASE" | head -1 | sed 's/.*:= *//' | sed 's/ *$//')" >> $GITHUB_OUTPUT
+          else
+            echo "version=1.0.0" >> $GITHUB_OUTPUT
+            echo "release=1" >> $GITHUB_OUTPUT
+          fi
+
+          if [ "$GITHUB_EVENT_NAME" == "pull_request" ]; then
+            GITHUB_SHA=$(cat $GITHUB_EVENT_PATH | jq -r .pull_request.head.sha)
+          fi
+          echo "sha=$(echo ${GITHUB_SHA::7})" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
+
+  build-openwrt:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        branch:
+          - openwrt-24.10
+        arch:
+          - aarch64_cortex-a53  # Xiaomi AX3000T
+          # - aarch64_cortex-a72
+          - aarch64_generic
+          # - arm_cortex-a7_neon-vfpv4
+          # - arm_cortex-a9
+          # - mips_24kc
+          # - mipsel_24kc
+          # - x86_64
+    container:
+      image: openwrt/sdk:${{ matrix.arch }}-${{ matrix.branch }}
+      options: --user root
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create package structure
+        run: |
+          # Create package structure for OpenWrt
+          mkdir -p wrtgram
+          
+          # Copy files
+          cp Makefile wrtgram/
+          cp -r etc sbin usr wrtgram/
+          
+          echo "Package structure created:"
+          find wrtgram -type f | head -20
+
+      - name: Initialize SDK
+        id: init_sdk
+        working-directory: /builder
+        run: |
+          HOME=/builder ./setup.sh
+
+      - name: Build packages
+        id: build
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE: ${{ needs.prepare.outputs.release }}
+          SHA: ${{ needs.prepare.outputs.sha }}
+        working-directory: /builder
+        run: |
+          # Add our package to feeds
+          echo "src-link wrtgram $GITHUB_WORKSPACE" >> feeds.conf
+          echo "Feeds configuration:"
+          cat feeds.conf
+          
+          # Update only our feed
+          ./scripts/feeds update wrtgram
+          
+          # Install package
+          ./scripts/feeds install -p wrtgram wrtgram
+          
+          # Verify package exists
+          echo "Checking package presence:"
+          ls -la package/feeds/wrtgram/ 2>/dev/null || echo "Directory not found"
+          
+          # Fallback: copy package directly
+          if [ ! -d "package/feeds/wrtgram/wrtgram" ]; then
+            echo "Copying package directly..."
+            mkdir -p package/wrtgram
+            cp -r $GITHUB_WORKSPACE/wrtgram/* package/wrtgram/
+            echo "Contents of package/wrtgram:"
+            ls -la package/wrtgram/
+          fi
+          
+          # Configure build
+          echo "CONFIG_PACKAGE_wrtgram=m" > .config
+          echo "CONFIG_ALL_KMODS=n" >> .config
+          echo "CONFIG_ALL_NONSHARED=n" >> .config
+          
+          make defconfig
+          
+          # Verify config
+          echo "Package config:"
+          grep wrtgram .config || echo "Package not found in config"
+          
+          # Show available packages
+          echo "Available packages:"
+          make package/symlinks
+          find package/ -name "*wrtgram*" -type d
+          
+          # Build package
+          if [ -d "package/wrtgram" ]; then
+            echo "Building package..."
+            make package/wrtgram/compile V=s
+          elif [ -d "package/feeds/wrtgram" ]; then
+            echo "Building package from feeds..."
+            make package/feeds/wrtgram/compile V=s
+          else
+            echo "❌ Package not found!"
+            echo "package/ structure:"
+            find package/ -maxdepth 2 -type d
+            exit 1
+          fi
+          
+          # Find built package
+          PACKAGE_FILE=$(find ./bin -type f -name 'wrtgram*.ipk' | head -1)
+          if [ -n "$PACKAGE_FILE" ]; then
+            mv "$PACKAGE_FILE" ./wrtgram-$VERSION-$RELEASE-$SHA-${{ matrix.arch }}-${{ matrix.branch }}.ipk
+            echo "✅ Package created: wrtgram-$VERSION-$RELEASE-$SHA-${{ matrix.arch }}-${{ matrix.branch }}.ipk"
+            ls -la ./wrtgram*.ipk
+          else
+            echo "❌ Package not found in bin/"
+            echo "Contents of bin/:"
+            find ./bin -name "*.ipk" -ls 2>/dev/null || echo "No .ipk files"
+            exit 1
+          fi
+
+      - name: Upload packages
+        if: steps.build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: wrtgram-${{ matrix.branch }}-${{ matrix.arch }}
+          path: /builder/wrtgram*.ipk
+          if-no-files-found: error
+
+  pre-release:
+    if: github.event_name != 'pull_request' && github.ref_name == 'master'
+    needs: [build-openwrt]
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create package repository
+        run: |
+          # Create repository structure
+          mkdir -p repo/packages
+          
+          # Copy all .ipk files
+          find . -name "wrtgram*.ipk" -exec cp {} repo/packages/ \;
+          
+          cd repo/packages
+          
+          # Create Packages index
+          for ipk in *.ipk; do
+            if [ -f "$ipk" ]; then
+              echo "Package: wrtgram"
+              echo "Version: $(echo $ipk | sed -n 's/wrtgram-\([^-]*-[^-]*\)-.*/\1/p')"
+              echo "Architecture: $(echo $ipk | sed -n 's/.*-\([^-]*\)-openwrt.*/\1/p')"
+              echo "Depends: curl, ca-certificates"
+              echo "Section: utils"
+              echo "Filename: $ipk"
+              echo "Size: $(stat -c%s "$ipk")"
+              echo "SHA256sum: $(sha256sum "$ipk" | cut -d' ' -f1)"
+              echo "Description: WrtGram (Telegram scripts for OpenWrt)"
+              echo ""
+            fi
+          done > Packages
+          
+          # Compress index
+          gzip -c Packages > Packages.gz
+          
+          # Generate a simple HTML index page
+          echo '<!DOCTYPE html>' > index.html
+          echo '<html><head><title>WrtGram Packages</title></head><body>' >> index.html
+          echo '<h1>WrtGram</h1>' >> index.html
+          echo '<p>Automatically built packages to manage OpenWrt via a Telegram bot</p>' >> index.html
+          echo '<h2>Installation</h2>' >> index.html
+          echo '<pre>echo "src/gz wrtgram https://github.com/nhAsif/WrtGram/releases/download/continuous" >> /etc/opkg/customfeeds.conf</pre>' >> index.html
+          echo '<pre>opkg update && opkg install wrtgram</pre>' >> index.html
+          echo '<h2>Available packages</h2><ul>' >> index.html
+          
+          for ipk in *.ipk; do
+            if [ -f "$ipk" ]; then
+              echo "<li><a href=\"$ipk\">$ipk</a></li>" >> index.html
+            fi
+          done
+          
+          echo '</ul></body></html>' >> index.html
+          
+          cd ../..
+
+      - name: Upload assets
+        uses: slord399/action-automatic-releases@v1.0.1
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          automatic_release_tag: 'continuous'
+          prerelease: true
+          title: 'Development build'
+          files: |
+            ./repo/packages/*.ipk
+            ./repo/packages/Packages
+            ./repo/packages/Packages.gz
+            ./repo/packages/index.html

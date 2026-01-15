@@ -1,0 +1,12 @@
+#!/bin/sh
+
+ps_cmd=$([[ $(readlink -fn /bin/ps) == "/bin/busybox" ]] && echo "ps w" || echo "ps ax")
+
+
+for i in $(${ps_cmd} | grep -v get_services | grep -v grep |  grep -v PID | awk '{print $1}')
+do 
+	if [ -e /proc/$i/status ];then
+		cat /proc/$i/status  2>/dev/null| grep "^Name:\|^State:\|^Threads:\|^Pid:" |awk '{gsub( "*","\\*" ); gsub( "_","\\_" ); print $0 }' 
+		echo "------------------"
+	fi
+done

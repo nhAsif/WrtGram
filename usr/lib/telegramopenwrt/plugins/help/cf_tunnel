@@ -1,0 +1,4 @@
+Creates a temporary Cloudflare tunnel to expose localhost to a specified port.
+Usage: /cf_tunnel [port]
+Example: /cf_tunnel 8080 (exposes localhost:8080)
+If no port is specified, it defaults to port 80.
