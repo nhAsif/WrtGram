@@ -9,6 +9,7 @@ PROG=/sbin/telegram_bot
 CONFIGURATION=wrtgram
 
 start_service () {
+        /sbin/telebot "🤖 WrtGram bot started on $(date "+%d/%m/%Y %I:%M %p")"
         PID=$(pgrep -f ${PROG})
         if [ -z "$PID" ]  ; then
                 config_load "${CONFIGURATION}"
