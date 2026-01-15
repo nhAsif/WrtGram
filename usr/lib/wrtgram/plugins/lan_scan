@@ -1,0 +1,30 @@
+#!/bin/sh
+
+echo "🌐 *LAN Device Status*"
+echo ""
+
+if [ -s /tmp/dhcp.leases ]; then
+    while read -r lease; do
+        IP_ADDRESS=$(echo "$lease" | awk '{print $3}')
+        HOSTNAME=$(echo "$lease" | awk '{print $4}')
+        
+        # Use a default hostname if it's not available
+        if [ -z "$HOSTNAME" ] || [ "$HOSTNAME" = "*" ]; then
+            HOSTNAME="Unknown"
+        fi
+
+        # Ping the device and get status
+        STATUS=$(/usr/lib/wrtgram/plugins/get_ping "$IP_ADDRESS" 1)
+
+        # Add emoji based on status
+        if [ "$STATUS" = "Up" ]; then
+            EMOJI="🟢"
+        else
+            EMOJI="🔴"
+        fi
+
+        echo "$EMOJI *$HOSTNAME* ($IP_ADDRESS) is $STATUS"
+    done < /tmp/dhcp.leases
+else
+    echo "No active DHCP leases found."
+fi

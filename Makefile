@@ -117,8 +117,10 @@ define Package/wrtgram/install
         		./usr/lib/wrtgram/plugins/help/interfaces_list \
         		./usr/lib/wrtgram/plugins/help/opkg_install \
         		./usr/lib/wrtgram/plugins/help/opkg_update \
+				./usr/lib/wrtgram/plugins/help/status \
 				./usr/lib/wrtgram/plugins/help/cf_tunnel \
 				./usr/lib/wrtgram/plugins/help/cf_tunnel_stop \
+				./usr/lib/wrtgram/plugins/help/lan_scan \
 		$(1)/usr/lib/wrtgram/plugins/help
 
 	$(INSTALL_DIR) $(1)/usr/lib/wrtgram/plugins
@@ -158,8 +160,10 @@ define Package/wrtgram/install
         		./usr/lib/wrtgram/plugins/interfaces_list \
         		./usr/lib/wrtgram/plugins/opkg_install \
         		./usr/lib/wrtgram/plugins/opkg_update \
+				./usr/lib/wrtgram/plugins/status \
 				./usr/lib/wrtgram/plugins/cf_tunnel \
 				./usr/lib/wrtgram/plugins/cf_tunnel_stop \
+				./usr/lib/wrtgram/plugins/lan_scan \
 		$(1)/usr/lib/wrtgram/plugins
 
 	$(INSTALL_DIR) $(1)/sbin

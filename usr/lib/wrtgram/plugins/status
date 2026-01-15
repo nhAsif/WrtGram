@@ -1,0 +1,30 @@
+#!/bin/sh
+
+# Get Uptime and Load Average
+UPTIME_RAW=$(uptime)
+UPTIME=$(echo "$UPTIME_RAW" | sed -n 's/.*up \([^,]*\), .*/\1/p')
+LOAD_AVG=$(echo "$UPTIME_RAW" | sed -n 's/.*load average: \(.*\)/\1/p')
+
+# Get RAM Usage
+MEM_INFO=$(free | grep "Mem:")
+TOTAL_MEM=$(echo "$MEM_INFO" | awk '{print $2}')
+USED_MEM=$(echo "$MEM_INFO" | awk '{print $3}')
+FREE_MEM=$(echo "$MEM_INFO" | awk '{print $4}')
+MEM_PERCENT=$((USED_MEM * 100 / TOTAL_MEM))
+
+# Get CPU Temperature (if available)
+CPU_TEMP_RAW=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null)
+if [ -n "$CPU_TEMP_RAW" ]; then
+    CPU_TEMP=$(awk -v temp="$CPU_TEMP_RAW" 'BEGIN {printf "%.1f°C", temp / 1000}')
+else
+    CPU_TEMP="N/A"
+fi
+
+# Format output with emojis
+echo "📊 *Router Status*
+
+🕒 *Uptime:* ${UPTIME}
+⚙️ *CPU Load:* ${LOAD_AVG}
+🧠 *RAM Usage:* ${MEM_PERCENT}%
+🌡️ *CPU Temp:* ${CPU_TEMP}
+"

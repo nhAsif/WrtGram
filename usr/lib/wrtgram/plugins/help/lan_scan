@@ -1,0 +1,1 @@
+Pings all devices on the LAN with an active DHCP lease to check their status.
