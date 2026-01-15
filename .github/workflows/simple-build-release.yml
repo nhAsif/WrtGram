@@ -68,6 +68,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Convert line endings to Unix format
+        run: |
+          find . -type f -print0 | xargs -0 sed -i 's/\r//g'
+
+
       - name: Create package structure
         run: |
           # Create package structure for OpenWrt
