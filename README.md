@@ -65,44 +65,46 @@ Plugins are simple shell scripts located in the `/usr/lib/wrtgram/plugins/` dire
 
 The following commands are included by default:
 
-*   `/cf_tunnel [port]`: Creates a temporary Cloudflare tunnel.
+*   `/cf_tunnel [port]`: Creates a temporary Cloudflare tunnel to a specified port (defaults to 80).
 *   `/cf_tunnel_stop`: Stops the running Cloudflare tunnel.
-*   `/fw_add <hostname> [time]`: Block a hostname in the firewall.
-*   `/fw_delete [hostname]`: Remove a firewall rule.
-*   `/fw_disable`: Disable a firewall rule.
-*   `/fw_enable`: Enable a firewall rule.
-*   `/fw_list`: List all firewall rules.
-*   `/fw_unblock`: Remove a hostname from a deny firewall rule.
-*   `/fwr_disable`: Disable a redirect firewall rule.
-*   `/fwr_enable`: Enable a redirect firewall rule.
-*   `/fwr_list`: List all redirect firewall rules.
-*   `/get_ip`: Get the WAN IP address.
-*   `/get_mac <mac_address>`: Get the vendor of a MAC address.
-*   `/get_ping <host>`: Ping a host to check its status.
-*   `/get_uptime`: Show the router's uptime.
-*   `/hst_list [hostname]`: List DHCP leases.
-*   `/ignoredmac_add <mac_address>`: Add a MAC address to the ignore list.
-*   `/ignoredmac_list`: List ignored MAC addresses.
-*   `/interface_down <interface>`: Shut down an interface.
-*   `/interface_restart <interface>`: Restart an interface.
-*   `/interface_up <interface>`: Start up an interface.
-*   `/interfaces_list`: List all network interfaces.
-*   `/netstat`: Show network connections.
-*   `/opkg_install <package>`: Install a package.
-*   `/opkg_update`: Update the package list.
-*   `/proc_list`: List running processes.
-*   `/proc_restart <process>`: Restart a service.
-*   `/proc_start <process>`: Start a service.
-*   `/proc_stop <process>`: Stop a service.
-*   `/reboot`: Reboot the router.
-*   `/start`: Show the help menu.
-*   `/swports_list`: List switch port status.
-*   `/tmate`: Create a new tmate session for remote access.
-*   `/wifi_disable <device>`: Disable a Wi-Fi radio.
-*   `/wifi_enable <device>`: Enable a Wi-Fi radio.
-*   `/wifi_list`: List all Wi-Fi devices.
-*   `/wifi_restart <device>`: Restart a Wi-Fi radio.
-*   `/wll_list`: List connected Wi-Fi clients.
+*   `/fw_add <hostname> [time]`: Blocks a hostname in the firewall. Can be time-based.
+*   `/fw_delete [hostname]`: Removes a firewall rule for a hostname.
+*   `/fw_disable`: Disables a firewall rule.
+*   `/fw_enable`: Enables a firewall rule.
+*   `/fw_list`: Lists all firewall rules.
+*   `/fw_unblock`: Removes a block rule for a hostname.
+*   `/fwr_disable`: Disables a redirect firewall rule.
+*   `/fwr_enable`: Enables a redirect firewall rule.
+*   `/fwr_list`: Lists all redirect firewall rules.
+*   `/get_ip`: Gets the WAN IP address.
+*   `/get_mac <mac_address>`: Gets the vendor of a MAC address.
+*   `/get_ping <host>`: Pings a host to check its status.
+*   `/get_uptime`: Shows the router's uptime.
+*   `/hst_list [hostname]`: Lists DHCP leases, optionally filtering by hostname.
+*   `/ignoredmac_add <mac_address>`: Adds a MAC address to the ignore list for new connection notifications.
+*   `/ignoredmac_list`: Lists ignored MAC addresses.
+*   `/interface_down <interface>`: Shuts down a network interface.
+*   `/interface_restart <interface>`: Restarts a network interface.
+*   `/interface_up <interface>`: Starts up a network interface.
+*   `/interfaces_list`: Lists all network interfaces and their status.
+*   `/lan_scan`: Scans the LAN for active and inactive devices and shows their IP and MAC addresses.
+*   `/netstat`: Shows network connections.
+*   `/opkg_install <package>`: Installs an OpenWrt package.
+*   `/opkg_update`: Updates the list of available packages.
+*   `/proc_list`: Lists running processes.
+*   `/proc_restart <service>`: Restarts a service.
+*   `/proc_start <service>`: Starts a service.
+*   `/proc_stop <service>`: Stops a service.
+*   `/reboot`: Reboots the router.
+*   `/start`: Shows the main help menu with all commands.
+*   `/status`: Shows router status including uptime, CPU load, RAM usage, and temperature.
+*   `/swports_list`: Lists the status of all switch ports.
+*   `/tmate`: Creates a new tmate session for remote access.
+*   `/wifi_disable <device>`: Disables a Wi-Fi radio.
+*   `/wifi_enable <device>`: Enables a Wi-Fi radio.
+*   `/wifi_list`: Lists all Wi-Fi devices.
+*   `/wifi_restart <device>`: Restarts a Wi-Fi radio.
+*   `/wll_list`: Lists connected Wi-Fi clients.
 
 ### Creating Your Own Plugins
 

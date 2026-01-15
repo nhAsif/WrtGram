@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=wrtgram
 
-PKG_VERSION:=2.1
+PKG_VERSION:=2.2
 PKG_RELEASE:=1
 
 PKG_LICENSE:=GPL-2.0
