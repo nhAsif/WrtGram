@@ -1,5 +1,5 @@
 #!/bin/sh
-# tmate plugin for TelegramOpenWrt
+# tmate plugin for WrtGram
 
 # Log file for debugging
 LOG_FILE="/tmp/tmate_plugin.log"

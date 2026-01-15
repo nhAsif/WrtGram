@@ -55,111 +55,111 @@ define Package/wrtgram/install
 	echo "$(PKG_VERSION)-$(PKG_RELEASE)" > $(1)/usr/share/wrtgram/version
 	
 	$(INSTALL_DIR) $(1)/usr/lib/wrtgram/plugins/actions
-	$(INSTALL_BIN) ./usr/lib/telegramopenwrt/plugins/actions/fwr_disable \
-				./usr/lib/telegramopenwrt/plugins/actions/fw_delete \
-				./usr/lib/telegramopenwrt/plugins/actions/proc_stop \
-				./usr/lib/telegramopenwrt/plugins/actions/fwr_enable \
-				./usr/lib/telegramopenwrt/plugins/actions/fw_disable \
-				./usr/lib/telegramopenwrt/plugins/actions/wifi_disable \
-				./usr/lib/telegramopenwrt/plugins/actions/wifi_restart \
-				./usr/lib/telegramopenwrt/plugins/actions/proc_restart \
-				./usr/lib/telegramopenwrt/plugins/actions/wifi_enable \
-				./usr/lib/telegramopenwrt/plugins/actions/proc_start \
-				./usr/lib/telegramopenwrt/plugins/actions/fw_enable \
-				./usr/lib/telegramopenwrt/plugins/actions/interface_down \
-        		./usr/lib/telegramopenwrt/plugins/actions/interface_restart \
-        		./usr/lib/telegramopenwrt/plugins/actions/interface_up \
+	$(INSTALL_BIN) ./usr/lib/wrtgram/plugins/actions/fwr_disable \
+				./usr/lib/wrtgram/plugins/actions/fw_delete \
+				./usr/lib/wrtgram/plugins/actions/proc_stop \
+				./usr/lib/wrtgram/plugins/actions/fwr_enable \
+				./usr/lib/wrtgram/plugins/actions/fw_disable \
+				./usr/lib/wrtgram/plugins/actions/wifi_disable \
+				./usr/lib/wrtgram/plugins/actions/wifi_restart \
+				./usr/lib/wrtgram/plugins/actions/proc_restart \
+				./usr/lib/wrtgram/plugins/actions/wifi_enable \
+				./usr/lib/wrtgram/plugins/actions/proc_start \
+				./usr/lib/wrtgram/plugins/actions/fw_enable \
+				./usr/lib/wrtgram/plugins/actions/interface_down \
+        		./usr/lib/wrtgram/plugins/actions/interface_restart \
+        		./usr/lib/wrtgram/plugins/actions/interface_up \
 		$(1)/usr/lib/wrtgram/plugins/actions
 	
 	$(INSTALL_DIR) $(1)/usr/lib/wrtgram/plugins/ctx
-	$(INSTALL_BIN) ./usr/lib/telegramopenwrt/plugins/ctx/wifi_list \
-				./usr/lib/telegramopenwrt/plugins/ctx/fwr_list \
-				./usr/lib/telegramopenwrt/plugins/ctx/service_list \
-				./usr/lib/telegramopenwrt/plugins/ctx/reboot \
-				./usr/lib/telegramopenwrt/plugins/ctx/fw_list \
-				./usr/lib/telegramopenwrt/plugins/ctx/interfaces_list \
+	$(INSTALL_BIN) ./usr/lib/wrtgram/plugins/ctx/wifi_list \
+				./usr/lib/wrtgram/plugins/ctx/fwr_list \
+				./usr/lib/wrtgram/plugins/ctx/service_list \
+				./usr/lib/wrtgram/plugins/ctx/reboot \
+				./usr/lib/wrtgram/plugins/ctx/fw_list \
+				./usr/lib/wrtgram/plugins/ctx/interfaces_list \
 		$(1)/usr/lib/wrtgram/plugins/ctx
 	
 	$(INSTALL_DIR) $(1)/usr/lib/wrtgram/plugins/help
-	$(INSTALL_DATA) ./usr/lib/telegramopenwrt/plugins/help/fw_unblock \
-				./usr/lib/telegramopenwrt/plugins/help/fw_add \
-				./usr/lib/telegramopenwrt/plugins/help/fwr_disable \
-				./usr/lib/telegramopenwrt/plugins/help/wifi_list \
-				./usr/lib/telegramopenwrt/plugins/help/swports_list \
-				./usr/lib/telegramopenwrt/plugins/help/fwr_list \
-				./usr/lib/telegramopenwrt/plugins/help/fw_delete \
-				./usr/lib/telegramopenwrt/plugins/help/get_mac \
-				./usr/lib/telegramopenwrt/plugins/help/proc_stop \
-				./usr/lib/telegramopenwrt/plugins/help/proc_list \
-				./usr/lib/telegramopenwrt/plugins/help/get_uptime \
-				./usr/lib/telegramopenwrt/plugins/help/fwr_enable \
-				./usr/lib/telegramopenwrt/plugins/help/wll_list \
-				./usr/lib/telegramopenwrt/plugins/help/start \
-				./usr/lib/telegramopenwrt/plugins/help/ignoredmac_list \
-				./usr/lib/telegramopenwrt/plugins/help/fw_disable \
-				./usr/lib/telegramopenwrt/plugins/help/wifi_disable \
-				./usr/lib/telegramopenwrt/plugins/help/wifi_restart \
-				./usr/lib/telegramopenwrt/plugins/help/proc_restart \
-				./usr/lib/telegramopenwrt/plugins/help/reboot \
-				./usr/lib/telegramopenwrt/plugins/help/wifi_enable \
-				./usr/lib/telegramopenwrt/plugins/help/get_ip \
-				./usr/lib/telegramopenwrt/plugins/help/get_ping \
-				./usr/lib/telegramopenwrt/plugins/help/fw_list \
-				./usr/lib/telegramopenwrt/plugins/help/proc_start \
-				./usr/lib/telegramopenwrt/plugins/help/ignoredmac_add \
-				./usr/lib/telegramopenwrt/plugins/help/fw_enable \
-				./usr/lib/telegramopenwrt/plugins/help/hst_list \
-				./usr/lib/telegramopenwrt/plugins/help/netstat \
-				./usr/lib/telegramopenwrt/plugins/help/tmate \
-				./usr/lib/telegramopenwrt/plugins/help/interface_restart \
-				./usr/lib/telegramopenwrt/plugins/help/interface_up \
-				./usr/lib/telegramopenwrt/plugins/help/interface_down \
-        		./usr/lib/telegramopenwrt/plugins/help/interfaces_list \
-        		./usr/lib/telegramopenwrt/plugins/help/opkg_install \
-        		./usr/lib/telegramopenwrt/plugins/help/opkg_update \
-				./usr/lib/telegramopenwrt/plugins/help/cf_tunnel \
-				./usr/lib/telegramopenwrt/plugins/help/cf_tunnel_stop \
+	$(INSTALL_DATA) ./usr/lib/wrtgram/plugins/help/fw_unblock \
+				./usr/lib/wrtgram/plugins/help/fw_add \
+				./usr/lib/wrtgram/plugins/help/fwr_disable \
+				./usr/lib/wrtgram/plugins/help/wifi_list \
+				./usr/lib/wrtgram/plugins/help/swports_list \
+				./usr/lib/wrtgram/plugins/help/fwr_list \
+				./usr/lib/wrtgram/plugins/help/fw_delete \
+				./usr/lib/wrtgram/plugins/help/get_mac \
+				./usr/lib/wrtgram/plugins/help/proc_stop \
+				./usr/lib/wrtgram/plugins/help/proc_list \
+				./usr/lib/wrtgram/plugins/help/get_uptime \
+				./usr/lib/wrtgram/plugins/help/fwr_enable \
+				./usr/lib/wrtgram/plugins/help/wll_list \
+				./usr/lib/wrtgram/plugins/help/start \
+				./usr/lib/wrtgram/plugins/help/ignoredmac_list \
+				./usr/lib/wrtgram/plugins/help/fw_disable \
+				./usr/lib/wrtgram/plugins/help/wifi_disable \
+				./usr/lib/wrtgram/plugins/help/wifi_restart \
+				./usr/lib/wrtgram/plugins/help/proc_restart \
+				./usr/lib/wrtgram/plugins/help/reboot \
+				./usr/lib/wrtgram/plugins/help/wifi_enable \
+				./usr/lib/wrtgram/plugins/help/get_ip \
+				./usr/lib/wrtgram/plugins/help/get_ping \
+				./usr/lib/wrtgram/plugins/help/fw_list \
+				./usr/lib/wrtgram/plugins/help/proc_start \
+				./usr/lib/wrtgram/plugins/help/ignoredmac_add \
+				./usr/lib/wrtgram/plugins/help/fw_enable \
+				./usr/lib/wrtgram/plugins/help/hst_list \
+				./usr/lib/wrtgram/plugins/help/netstat \
+				./usr/lib/wrtgram/plugins/help/tmate \
+				./usr/lib/wrtgram/plugins/help/interface_restart \
+				./usr/lib/wrtgram/plugins/help/interface_up \
+				./usr/lib/wrtgram/plugins/help/interface_down \
+        		./usr/lib/wrtgram/plugins/help/interfaces_list \
+        		./usr/lib/wrtgram/plugins/help/opkg_install \
+        		./usr/lib/wrtgram/plugins/help/opkg_update \
+				./usr/lib/wrtgram/plugins/help/cf_tunnel \
+				./usr/lib/wrtgram/plugins/help/cf_tunnel_stop \
 		$(1)/usr/lib/wrtgram/plugins/help
 
 	$(INSTALL_DIR) $(1)/usr/lib/wrtgram/plugins
-	$(INSTALL_BIN) ./usr/lib/telegramopenwrt/plugins/fw_unblock \
-				./usr/lib/telegramopenwrt/plugins/fw_add \
-				./usr/lib/telegramopenwrt/plugins/fwr_disable \
-				./usr/lib/telegramopenwrt/plugins/wifi_list \
-				./usr/lib/telegramopenwrt/plugins/swports_list \
-				./usr/lib/telegramopenwrt/plugins/fwr_list \
-				./usr/lib/telegramopenwrt/plugins/fw_delete \
-				./usr/lib/telegramopenwrt/plugins/get_mac \
-				./usr/lib/telegramopenwrt/plugins/proc_stop \
-				./usr/lib/telegramopenwrt/plugins/proc_list \
-				./usr/lib/telegramopenwrt/plugins/get_uptime \
-				./usr/lib/telegramopenwrt/plugins/fwr_enable \
-				./usr/lib/telegramopenwrt/plugins/wll_list \
-				./usr/lib/telegramopenwrt/plugins/start \
-				./usr/lib/telegramopenwrt/plugins/ignoredmac_list \
-				./usr/lib/telegramopenwrt/plugins/fw_disable \
-				./usr/lib/telegramopenwrt/plugins/wifi_disable \
-				./usr/lib/telegramopenwrt/plugins/wifi_restart \
-				./usr/lib/telegramopenwrt/plugins/proc_restart \
-				./usr/lib/telegramopenwrt/plugins/reboot \
-				./usr/lib/telegramopenwrt/plugins/wifi_enable \
-				./usr/lib/telegramopenwrt/plugins/get_ip \
-				./usr/lib/telegramopenwrt/plugins/get_ping \
-				./usr/lib/telegramopenwrt/plugins/fw_list \
-				./usr/lib/telegramopenwrt/plugins/proc_start \
-				./usr/lib/telegramopenwrt/plugins/ignoredmac_add \
-				./usr/lib/telegramopenwrt/plugins/fw_enable \
-				./usr/lib/telegramopenwrt/plugins/hst_list \
-				./usr/lib/telegramopenwrt/plugins/netstat \
-				./usr/lib/telegramopenwrt/plugins/tmate \
-				./usr/lib/telegramopenwrt/plugins/interface_down \
-        		./usr/lib/telegramopenwrt/plugins/interface_restart \
-        		./usr/lib/telegramopenwrt/plugins/interface_up \
-        		./usr/lib/telegramopenwrt/plugins/interfaces_list \
-        		./usr/lib/telegramopenwrt/plugins/opkg_install \
-        		./usr/lib/telegramopenwrt/plugins/opkg_update \
-				./usr/lib/telegramopenwrt/plugins/cf_tunnel \
-				./usr/lib/telegramopenwrt/plugins/cf_tunnel_stop \
+	$(INSTALL_BIN) ./usr/lib/wrtgram/plugins/fw_unblock \
+				./usr/lib/wrtgram/plugins/fw_add \
+				./usr/lib/wrtgram/plugins/fwr_disable \
+				./usr/lib/wrtgram/plugins/wifi_list \
+				./usr/lib/wrtgram/plugins/swports_list \
+				./usr/lib/wrtgram/plugins/fwr_list \
+				./usr/lib/wrtgram/plugins/fw_delete \
+				./usr/lib/wrtgram/plugins/get_mac \
+				./usr/lib/wrtgram/plugins/proc_stop \
+				./usr/lib/wrtgram/plugins/proc_list \
+				./usr/lib/wrtgram/plugins/get_uptime \
+				./usr/lib/wrtgram/plugins/fwr_enable \
+				./usr/lib/wrtgram/plugins/wll_list \
+				./usr/lib/wrtgram/plugins/start \
+				./usr/lib/wrtgram/plugins/ignoredmac_list \
+				./usr/lib/wrtgram/plugins/fw_disable \
+				./usr/lib/wrtgram/plugins/wifi_disable \
+				./usr/lib/wrtgram/plugins/wifi_restart \
+				./usr/lib/wrtgram/plugins/proc_restart \
+				./usr/lib/wrtgram/plugins/reboot \
+				./usr/lib/wrtgram/plugins/wifi_enable \
+				./usr/lib/wrtgram/plugins/get_ip \
+				./usr/lib/wrtgram/plugins/get_ping \
+				./usr/lib/wrtgram/plugins/fw_list \
+				./usr/lib/wrtgram/plugins/proc_start \
+				./usr/lib/wrtgram/plugins/ignoredmac_add \
+				./usr/lib/wrtgram/plugins/fw_enable \
+				./usr/lib/wrtgram/plugins/hst_list \
+				./usr/lib/wrtgram/plugins/netstat \
+				./usr/lib/wrtgram/plugins/tmate \
+				./usr/lib/wrtgram/plugins/interface_down \
+        		./usr/lib/wrtgram/plugins/interface_restart \
+        		./usr/lib/wrtgram/plugins/interface_up \
+        		./usr/lib/wrtgram/plugins/interfaces_list \
+        		./usr/lib/wrtgram/plugins/opkg_install \
+        		./usr/lib/wrtgram/plugins/opkg_update \
+				./usr/lib/wrtgram/plugins/cf_tunnel \
+				./usr/lib/wrtgram/plugins/cf_tunnel_stop \
 		$(1)/usr/lib/wrtgram/plugins
 
 	$(INSTALL_DIR) $(1)/sbin
