@@ -1,30 +1,96 @@
 #!/bin/sh
 
 echo "🌐 *LAN Device Status*"
+echo "Scanning the LAN for active hosts... (this may take a minute)"
 echo ""
 
-if [ -s /tmp/dhcp.leases ]; then
-    while read -r lease; do
-        IP_ADDRESS=$(echo "$lease" | awk '{print $3}')
-        HOSTNAME=$(echo "$lease" | awk '{print $4}')
+# Get LAN IP and construct network prefix. This assumes a /24 subnet.
+LAN_IP=$(uci get network.lan.ipaddr)
+if [ -z "$LAN_IP" ]; then
+    echo "Could not determine LAN IP address."
+    exit 1
+fi
+PREFIX=$(echo "$LAN_IP" | cut -d. -f1-3)
+
+# Temporary file for active hosts
+ACTIVE_HOSTS_FILE=$(mktemp)
+
+# Ping all possible hosts in the background
+# This scans the .1 to .254 range of the current subnet.
+# It assumes a /24 subnet (e.g., 192.168.1.x), which is common for LANs.
+for i in $(seq 1 254); do
+    IP_ADDRESS="$PREFIX.$i"
+    # ping with 1 packet, 1 second timeout. If successful, add to file.
+    (ping -c 1 -w 1 "$IP_ADDRESS" > /dev/null && echo "$IP_ADDRESS" >> "$ACTIVE_HOSTS_FILE") &
+done
+
+# Wait for all pings to finish
+wait
+
+if [ ! -s "$ACTIVE_HOSTS_FILE" ] && [ ! -s /tmp/dhcp.leases ]; then
+    echo "No active hosts found and no DHCP leases to check."
+    rm -f "$ACTIVE_HOSTS_FILE"
+    exit 0
+fi
+
+# Section for Active Hosts
+echo "🟢 *Active Hosts*"
+if [ -s "$ACTIVE_HOSTS_FILE" ]; then
+    # Sort the IPs for clean output
+    sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n "$ACTIVE_HOSTS_FILE" | while read -r IP_ADDRESS; do
+        # Try to find hostname in dhcp.leases
+        HOSTNAME=$(grep -w "$IP_ADDRESS" /tmp/dhcp.leases | awk '{print $4}')
         
-        # Use a default hostname if it's not available
         if [ -z "$HOSTNAME" ] || [ "$HOSTNAME" = "*" ]; then
             HOSTNAME="Unknown"
         fi
 
-        # Ping the device and get status
-        STATUS=$(/usr/lib/wrtgram/plugins/get_ping "$IP_ADDRESS" 1)
-
-        # Add emoji based on status
-        if [ "$STATUS" = "Up" ]; then
-            EMOJI="🟢"
-        else
-            EMOJI="🔴"
+        # Get MAC address from ARP table
+        MAC_ADDRESS=$(grep -w "$IP_ADDRESS" /proc/net/arp | awk '{print $4}' | tr '[:lower:]' '[:upper:]')
+        if [ -z "$MAC_ADDRESS" ]; then
+            MAC_ADDRESS="N/A"
         fi
 
-        echo "$EMOJI *$HOSTNAME* ($IP_ADDRESS) is $STATUS"
-    done < /tmp/dhcp.leases
+        echo "🟢 *$HOSTNAME* ($IP_ADDRESS) ($MAC_ADDRESS) is Up"
+    done
 else
-    echo "No active DHCP leases found."
+    echo "No active hosts responded to ping."
 fi
+
+echo ""
+
+# Section for Inactive Hosts that have a DHCP lease
+echo "🔴 *Inactive Hosts (from DHCP leases)*"
+INACTIVE_IPS_FILE=$(mktemp)
+
+if [ -s /tmp/dhcp.leases ]; then
+    while read -r lease; do
+        IP_ADDRESS=$(echo "$lease" | awk '{print $3}')
+        if ! grep -q -w "$IP_ADDRESS" "$ACTIVE_HOSTS_FILE"; then
+            echo "$IP_ADDRESS" >> "$INACTIVE_IPS_FILE"
+        fi
+    done < /tmp/dhcp.leases
+
+    if [ -s "$INACTIVE_IPS_FILE" ]; then
+        sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n "$INACTIVE_IPS_FILE" | while read -r IP_ADDRESS; do
+            HOSTNAME=$(grep -w "$IP_ADDRESS" /tmp/dhcp.leases | awk '{print $4}')
+            MAC_ADDRESS=$(grep -w "$IP_ADDRESS" /tmp/dhcp.leases | awk '{print $2}' | tr '[:lower:]' '[:upper:]')
+            
+            if [ -z "$HOSTNAME" ] || [ "$HOSTNAME" = "*" ]; then
+                HOSTNAME="Unknown"
+            fi
+            if [ -z "$MAC_ADDRESS" ]; then
+                MAC_ADDRESS="N/A"
+            fi
+            echo "🔴 *$HOSTNAME* ($IP_ADDRESS) ($MAC_ADDRESS) is Down"
+        done
+    else
+        echo "All hosts with DHCP leases are active."
+    fi
+else
+    echo "No DHCP leases found to check for inactive hosts."
+fi
+
+# Cleanup
+rm -f "$INACTIVE_IPS_FILE"
+rm -f "$ACTIVE_HOSTS_FILE"
