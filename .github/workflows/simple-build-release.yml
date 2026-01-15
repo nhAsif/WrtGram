@@ -175,7 +175,7 @@ jobs:
           if-no-files-found: error
 
   pre-release:
-    if: github.event_name != 'pull_request' && github.ref_name == 'master'
+    if: github.event_name != 'pull_request' && github.ref_name == 'main'
     needs: [build-openwrt]
     permissions:
       contents: write
