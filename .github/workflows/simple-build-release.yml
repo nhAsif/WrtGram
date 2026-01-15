@@ -40,9 +40,11 @@ jobs:
           fi
 
           if [ "$GITHUB_EVENT_NAME" == "pull_request" ]; then
-            GITHUB_SHA=$(cat $GITHUB_EVENT_PATH | jq -r .pull_request.head.sha)
+            sha=$(cat $GITHUB_EVENT_PATH | jq -r .pull_request.head.sha)
+          else
+            sha=$GITHUB_SHA
           fi
-          echo "sha=$(echo ${GITHUB_SHA::7})" >> $GITHUB_OUTPUT
+          echo "sha=$(echo ${sha::7})" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
 
   build-openwrt:
