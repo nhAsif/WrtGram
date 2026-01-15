@@ -28,6 +28,7 @@ jobs:
         env:
           REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_SHA: ${{ github.sha }}
         shell: bash
         run: |
           # Extract version from Makefile (or use defaults)
