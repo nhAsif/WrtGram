@@ -130,6 +130,10 @@ If the bot is not responding, check the following:
 
 Contributions are welcome! Please see the [CONTRIBUTING.md](CONTRIBUTING.md) file for guidelines.
 
+## Credits
+
+This project is based on the original telegramopenwrt by [alexwbaule](https://github.com/alexwbaule/telegramopenwrt).
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.

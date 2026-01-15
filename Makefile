@@ -33,6 +33,7 @@ define Build/Configure
 endef
 
 define Build/Compile
+	find . -type f -print0 | xargs -0 sed -i 's/\r$//'
 endef
 
 define Package/wrtgram/install
