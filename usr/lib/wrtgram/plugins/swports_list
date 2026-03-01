@@ -1,4 +1,5 @@
 #!/bin/sh
+# HELP: Switch ports list with states.
 
 # POSIX-compatible way to set IFS to newline
 IFS='

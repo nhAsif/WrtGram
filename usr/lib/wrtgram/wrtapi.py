@@ -98,3 +98,25 @@ def paginate_buttons(items, page, page_size, callback_pattern):
         
     page_items.append(nav_row)
     return page_items
+
+def get_plugin_help(plugin_name):
+    plugins_dir = "/usr/lib/wrtgram/plugins"
+    # Try .py first
+    path = os.path.join(plugins_dir, f"{plugin_name}.py")
+    if not os.path.exists(path):
+        path = os.path.join(plugins_dir, plugin_name)
+    
+    if not os.path.exists(path):
+        return ""
+    
+    try:
+        with open(path, "r") as f:
+            # Read first few lines to find HELP: tag
+            for _ in range(10): 
+                line = f.readline()
+                if not line: break
+                if "HELP:" in line:
+                    return line.split("HELP:", 1)[1].strip()
+    except:
+        pass
+    return ""

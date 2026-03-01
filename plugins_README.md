@@ -7,10 +7,9 @@ This document provides a guide on how to extend the functionality of the `wrtgra
 The WrtGram bot operates on a simple, yet powerful, plugin architecture:
 
 *   **Main Bot Script (`sbin/telegram_bot`):** This script continuously polls Telegram for new messages. When an authorized user sends a command (e.g., `/mycommand`), the bot looks for a corresponding script in the plugins directory.
-*   **Plugins Directory (`usr/lib/wrtgram/plugins/`):** This is where the main script for each bot command resides. The filename (without extension or path) directly corresponds to the Telegram command. The standard output of these scripts is sent back to the user as the command's response.
+*   **Plugins Directory (`usr/lib/wrtgram/plugins/`):** This is where the main script for each bot command resides. The filename (without extension or path) directly corresponds to the Telegram command. The standard output of these scripts is sent back to the user as the command's response. Scripts should include a `# HELP: <description>` comment on the second line for the `/start` menu.
 *   **Action Scripts (`usr/lib/wrtgram/plugins/actions/`):** These scripts are executed in response to inline keyboard button presses, typically after a "context" script has presented options to the user.
 *   **Context Scripts (`usr/lib/wrtgram/plugins/ctx/`):** These scripts are used for commands that require user interaction. They display options (e.g., via inline keyboards) and set up the context for subsequent "action" scripts.
-*   **Help Files (`usr/lib/wrtgram/plugins/help/`):** These are plain text files with the same name as a plugin. Their content is displayed when the user runs the `/start` command, providing built-in help for each command.
 *   **Shared Library (`usr/lib/wrtgram/common`):** A shared shell library sourced by `sbin` scripts. Provides `WRTGRAM_API`, `CURL_TLS`, `tg_api_call` (with retry/backoff), and `tg_send`. Plugin scripts may also source it for advanced use.
 *   **OpenWrt Makefile:** The project is packaged as an OpenWrt IPK. The `Makefile` defines which files are included in the final package and where they are installed on the router. Any new plugin files *must* be added to the `Makefile` to be deployed.
 
@@ -32,14 +31,23 @@ To add a new command plugin (e.g., `/mycommand`), follow these steps:
         ```
 3.  **Make the script executable:** Ensure the script has execute permissions (`chmod +x usr/lib/wrtgram/plugins/mycommand`). This is handled by `INSTALL_BIN` in the Makefile, but good practice for local testing.
 
-### 2. Create the Help File
-
-1.  **Create a new plain text file:** `usr/lib/wrtgram/plugins/help/mycommand` (again, `mycommand` should match your plugin name).
-2.  **Add a brief description:** Write a concise explanation of what your command does. This text will appear when the user sends the `/start` command to the bot.
-    *   Example:
-        ```
-        This command greets the user.
-        ```
+### 2. Add Help Description
+ 
+Add a `# HELP: <description>` comment on the second line of your script (right after the shebang). This text will appear when the user runs the `/start` command.
+ 
+*   **Example (Shell):**
+    ```bash
+    #!/bin/sh
+    # HELP: This command greets the user.
+    echo "Hello!"
+    ```
+ 
+*   **Example (Python):**
+    ```python
+    #!/usr/bin/env python3
+    # HELP: This command greets the user.
+    ...
+    ```
 
 ### (Optional) Using the Shared Library
 
@@ -98,16 +106,7 @@ This is a **critical step** to ensure your new files are included in the OpenWrt
         			...more_existing_plugins... \
         		$(1)/usr/lib/wrtgram/plugins
         ```
-4.  **Add your new help file:** Find the `$(INSTALL_DATA)` block for `$(1)/usr/lib/wrtgram/plugins/help` and add an entry for `./usr/lib/wrtgram/plugins/help/mycommand`.
-    *   Example snippet from `Makefile`:
-        ```makefile
-        	$(INSTALL_DIR) $(1)/usr/lib/wrtgram/plugins/help
-        	$(INSTALL_DATA) ...existing_help_files... \
-        			./usr/lib/wrtgram/plugins/help/mycommand \
-        			...more_existing_help_files... \
-        		$(1)/usr/lib/wrtgram/plugins/help
-        ```
-5.  **(If applicable) Add context and action scripts:** Similarly, add entries for any `ctx` or `actions` scripts you created to their respective `$(INSTALL_BIN)` blocks in the `Makefile`.
+4.  **(Optional) Add context and action scripts:** Similarly, add entries for any `ctx` or `actions` scripts you created to their respective `$(INSTALL_BIN)` blocks in the `Makefile`.
 
 ### 5. Rebuild and Reinstall the Package
 

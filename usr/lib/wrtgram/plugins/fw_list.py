@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# HELP: List all fw rules.
 import sys, os, subprocess
 
 sys.path.append("/usr/lib/wrtgram")

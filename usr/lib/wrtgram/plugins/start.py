@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# HELP: This menu help!
 import sys, os
 
 sys.path.append("/usr/lib/wrtgram")
@@ -9,13 +10,11 @@ def run_start():
     text += "This is the available commands list:\n\n"
     
     plugins_dir = "/usr/lib/wrtgram/plugins"
-    help_dir = os.path.join(plugins_dir, "help")
     
-    # Get all files in plugins dir that are not subdirectories
     try:
+        # Get all files in plugins dir that are not subdirectories or helper modules
         plugins = [f for f in os.listdir(plugins_dir) 
                    if os.path.isfile(os.path.join(plugins_dir, f)) and not f.endswith(".py")]
-        # Also include .py plugins but without the extension
         py_plugins = [f[:-3] for f in os.listdir(plugins_dir) 
                       if os.path.isfile(os.path.join(plugins_dir, f)) and f.endswith(".py") 
                       and f != "wrtapi.py" and not f.startswith("__")]
@@ -23,15 +22,9 @@ def run_start():
         all_plugins = sorted(list(set(plugins + py_plugins)))
         
         for plug in all_plugins:
-            # Skip internal or utility scripts if any
             if plug in ["common", "wrtapi"]: continue
             
-            help_text = ""
-            help_file = os.path.join(help_dir, plug)
-            if os.path.exists(help_file):
-                with open(help_file, "r") as hf:
-                    help_text = hf.read().strip()
-            
+            help_text = wrtapi.get_plugin_help(plug)
             if not help_text:
                 help_text = "No description available"
                 

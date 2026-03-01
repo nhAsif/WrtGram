@@ -1,3 +1,4 @@
 #!/bin/sh
+# HELP: Restart a process in init.d
 
 ./ctx/service_list "proc_restart" "Choose a service to restart:" >/dev/null

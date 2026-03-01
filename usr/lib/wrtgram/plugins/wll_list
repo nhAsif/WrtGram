@@ -1,4 +1,5 @@
 #!/bin/sh
+# HELP: Get a wifi clients list that is connected to this devices.
 
 for wifi in wlan0 wlan1
 do

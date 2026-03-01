@@ -1,4 +1,5 @@
 #!/bin/sh
+# HELP: Shows per-interface bandwidth stats (RX/TX). Uses vnstat for historical data if installed, otherwise falls back to live /proc/net/dev counters.
 
 echo "📶 *Bandwidth Statistics*"
 echo ""

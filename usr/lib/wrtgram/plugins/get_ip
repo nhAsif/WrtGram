@@ -1,4 +1,5 @@
 #!/bin/sh
+# HELP: Get WAN IPAddress.
 
 # Dynamically determine WAN interface from UCI/ubus — avoids hardcoded eth0.2
 WAN_IFACE=$(ubus call network.interface.wan status 2>/dev/null \

@@ -1,4 +1,5 @@
 #!/bin/sh
+# HELP: Update list of packages avaliable.
 
 OUTPUT=$(/bin/opkg update)
 

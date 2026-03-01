@@ -1,3 +1,4 @@
 #!/bin/sh
+# HELP: Return the uptime from this Device.
 
 uptime

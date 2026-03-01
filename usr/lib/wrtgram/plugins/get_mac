@@ -1,4 +1,5 @@
 #!/bin/sh
+# HELP: Get the Organization that onwer the MacAddr.
 
 . /usr/lib/wrtgram/common
 

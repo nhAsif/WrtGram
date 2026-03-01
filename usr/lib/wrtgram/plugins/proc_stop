@@ -1,3 +1,4 @@
 #!/bin/sh
+# HELP: Stop a process in init.d
 
 ./ctx/service_list "proc_stop" "Choose a service to stop:" >/dev/null

@@ -1,4 +1,5 @@
 #!/bin/sh
+# HELP: Disable a redirect firewall rule.
 
 
 ./ctx/fwr_list "fwr_disable" "Choose a rule to disable:" >/dev/null

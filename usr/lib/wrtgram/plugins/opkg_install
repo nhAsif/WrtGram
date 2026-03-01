@@ -1,4 +1,5 @@
 #!/bin/sh
+# HELP: Install a package from opkg.
 
 NAME="$1"
 

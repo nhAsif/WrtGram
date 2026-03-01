@@ -1,4 +1,5 @@
 #!/bin/sh
+# HELP: Get hosts in the dhcp Leases. If a hostname is present, search only for this hostname.
 
 parms="$1"
 

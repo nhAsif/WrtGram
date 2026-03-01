@@ -1,4 +1,5 @@
 #!/bin/sh
+# HELP: List all wireless devices.
 
 old=$IFS
 IFS=$'\n'

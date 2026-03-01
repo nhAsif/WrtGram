@@ -1,4 +1,5 @@
 #!/bin/sh                                                                                                                                                                                                                    
+# HELP: Get interfaces configuration.
                                                                                                                                                                                                                              
 old=$IFS                                                                                                                                                                                                                     
 IFS=$'\n'                                                                                                                                                                                                                    

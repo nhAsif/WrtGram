@@ -1,4 +1,5 @@
 #!/bin/sh
+# HELP: List all redirect fw rules.
 
 old=$IFS
 IFS=$'\n'

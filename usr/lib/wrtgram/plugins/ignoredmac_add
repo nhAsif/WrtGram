@@ -1,4 +1,5 @@
 #!/bin/ash
+# HELP: Add a new macaddress to the allowlist and avoid being notified about it.
 NEWMAC="$*"
 ignored_macaddrs_file=$(uci -q get wrtgram.global.ignored_macaddrs_file)
 echo "${NEWMAC}" >> "$ignored_macaddrs_file"

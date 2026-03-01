@@ -1,4 +1,5 @@
 #!/bin/sh
+# HELP: Pings all devices on the LAN with an active DHCP lease to check their status.
 
 echo "🌐 *LAN Device Status*"
 echo "Scanning the LAN for active hosts... (this may take a minute)"

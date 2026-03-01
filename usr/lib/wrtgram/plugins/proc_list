@@ -1,4 +1,5 @@
 #!/bin/sh
+# HELP: List all process in execution
 
 ps_cmd=$([[ $(readlink -fn /bin/ps) == "/bin/busybox" ]] && echo "ps w" || echo "ps ax")
 

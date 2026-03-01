@@ -1,4 +1,5 @@
 #!/bin/sh
+# HELP: Disable a wireless device radio.
 
 
 ./ctx/wifi_list "wifi_disable" "Choose a Wireless radio disable:" >/dev/null

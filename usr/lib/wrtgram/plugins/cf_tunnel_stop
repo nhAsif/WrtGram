@@ -1,4 +1,5 @@
 #!/bin/sh
+# HELP: Stops the running Cloudflare tunnel.
 
 PID_TO_KILL=$(ps w | grep "[c]loudflared tunnel" | awk '{print $1}')
 

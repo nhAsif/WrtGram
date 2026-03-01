@@ -1,3 +1,4 @@
 #!/bin/sh
+# HELP: Start a process in init.d
 
 ./ctx/service_list "proc_start" "Choose a service to start:" >/dev/null

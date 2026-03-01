@@ -1,4 +1,5 @@
 #!/bin/sh
+# HELP: Restart a wireless device radio.
 
 
 ./ctx/wifi_list "wifi_restart" "Choose a Wireless radio restart:" >/dev/null

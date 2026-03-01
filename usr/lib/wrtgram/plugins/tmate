@@ -1,4 +1,5 @@
 #!/bin/sh
+# HELP: Create a new tmate session for remote access.
 # tmate plugin for WrtGram
 
 # Log file for debugging

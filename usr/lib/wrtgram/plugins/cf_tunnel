@@ -1,4 +1,8 @@
 #!/bin/sh
+# HELP: Creates a temporary Cloudflare tunnel to expose localhost to a specified port.
+Usage: /cf_tunnel [port]
+Example: /cf_tunnel 8080 (exposes localhost:8080)
+If no port is specified, it defaults to port 80.
 
 LOG_FILE="/tmp/cf_tunnel.log"
 PID_FILE="/tmp/cf_tunnel.pid"

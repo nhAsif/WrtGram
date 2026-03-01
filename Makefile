@@ -85,51 +85,7 @@ define Package/wrtgram/install
 				./usr/lib/wrtgram/plugins/ctx/interfaces_list \
 		$(1)/usr/lib/wrtgram/plugins/ctx
 	
-	$(INSTALL_DIR) $(1)/usr/lib/wrtgram/plugins/help
-	$(INSTALL_DATA) ./usr/lib/wrtgram/plugins/help/fw_unblock \
-				./usr/lib/wrtgram/plugins/help/fw_add \
-				./usr/lib/wrtgram/plugins/help/fwr_disable \
-				./usr/lib/wrtgram/plugins/help/wifi_list \
-				./usr/lib/wrtgram/plugins/help/swports_list \
-				./usr/lib/wrtgram/plugins/help/fwr_list \
-				./usr/lib/wrtgram/plugins/help/fw_delete \
-				./usr/lib/wrtgram/plugins/help/get_mac \
-				./usr/lib/wrtgram/plugins/help/proc_stop \
-				./usr/lib/wrtgram/plugins/help/proc_list \
-				./usr/lib/wrtgram/plugins/help/get_uptime \
-				./usr/lib/wrtgram/plugins/help/fwr_enable \
-				./usr/lib/wrtgram/plugins/help/wll_list \
-				./usr/lib/wrtgram/plugins/help/start \
-				./usr/lib/wrtgram/plugins/help/ignoredmac_list \
-				./usr/lib/wrtgram/plugins/help/fw_disable \
-				./usr/lib/wrtgram/plugins/help/wifi_disable \
-				./usr/lib/wrtgram/plugins/help/wifi_restart \
-				./usr/lib/wrtgram/plugins/help/proc_restart \
-				./usr/lib/wrtgram/plugins/help/reboot \
-				./usr/lib/wrtgram/plugins/help/wifi_enable \
-				./usr/lib/wrtgram/plugins/help/get_ip \
-				./usr/lib/wrtgram/plugins/help/get_ping \
-				./usr/lib/wrtgram/plugins/help/fw_list \
-				./usr/lib/wrtgram/plugins/help/proc_start \
-				./usr/lib/wrtgram/plugins/help/ignoredmac_add \
-				./usr/lib/wrtgram/plugins/help/fw_enable \
-				./usr/lib/wrtgram/plugins/help/hst_list \
-				./usr/lib/wrtgram/plugins/help/netstat \
-				./usr/lib/wrtgram/plugins/help/tmate \
-				./usr/lib/wrtgram/plugins/help/interface_restart \
-				./usr/lib/wrtgram/plugins/help/interface_up \
-				./usr/lib/wrtgram/plugins/help/interface_down \
-        		./usr/lib/wrtgram/plugins/help/interfaces_list \
-        		./usr/lib/wrtgram/plugins/help/opkg_install \
-        		./usr/lib/wrtgram/plugins/help/opkg_update \
-				./usr/lib/wrtgram/plugins/help/status \
-				./usr/lib/wrtgram/plugins/help/cf_tunnel \
-				./usr/lib/wrtgram/plugins/help/cf_tunnel_stop \
-				./usr/lib/wrtgram/plugins/help/bw_stats \
-				./usr/lib/wrtgram/plugins/help/version \
-				./usr/lib/wrtgram/plugins/help/lan_scan \
-				./usr/lib/wrtgram/plugins/help/dashboard \
-		$(1)/usr/lib/wrtgram/plugins/help
+	# Help directory removed (text merged into plugins)
 
 	$(INSTALL_DIR) $(1)/usr/lib/wrtgram/plugins
 	$(INSTALL_BIN) ./usr/lib/wrtgram/plugins/fw_unblock \
@@ -145,7 +101,7 @@ define Package/wrtgram/install
 				./usr/lib/wrtgram/plugins/get_uptime \
 				./usr/lib/wrtgram/plugins/fwr_enable \
 				./usr/lib/wrtgram/plugins/wll_list \
-				./usr/lib/wrtgram/plugins/start \
+				./usr/lib/wrtgram/plugins/start.py \
 				./usr/lib/wrtgram/plugins/ignoredmac_list \
 				./usr/lib/wrtgram/plugins/fw_disable \
 				./usr/lib/wrtgram/plugins/wifi_disable \
@@ -155,7 +111,7 @@ define Package/wrtgram/install
 				./usr/lib/wrtgram/plugins/wifi_enable \
 				./usr/lib/wrtgram/plugins/get_ip \
 				./usr/lib/wrtgram/plugins/get_ping \
-				./usr/lib/wrtgram/plugins/fw_list \
+				./usr/lib/wrtgram/plugins/fw_list.py \
 				./usr/lib/wrtgram/plugins/proc_start \
 				./usr/lib/wrtgram/plugins/ignoredmac_add \
 				./usr/lib/wrtgram/plugins/fw_enable \
@@ -168,13 +124,13 @@ define Package/wrtgram/install
         		./usr/lib/wrtgram/plugins/interfaces_list \
         		./usr/lib/wrtgram/plugins/opkg_install \
         		./usr/lib/wrtgram/plugins/opkg_update \
-				./usr/lib/wrtgram/plugins/status \
+				./usr/lib/wrtgram/plugins/status.py \
 				./usr/lib/wrtgram/plugins/cf_tunnel \
 				./usr/lib/wrtgram/plugins/cf_tunnel_stop \
 				./usr/lib/wrtgram/plugins/bw_stats \
 				./usr/lib/wrtgram/plugins/version \
 				./usr/lib/wrtgram/plugins/lan_scan \
-				./usr/lib/wrtgram/plugins/dashboard \
+				./usr/lib/wrtgram/plugins/dashboard.py \
 		$(1)/usr/lib/wrtgram/plugins
 
 	$(INSTALL_DIR) $(1)/sbin
@@ -191,6 +147,18 @@ endef
 define Package/wrtgram/postinst
 #!/bin/sh
 if [ -z "$${IPKG_INSTROOT}" ]; then
+	# Prune legacy help files
+	if [ -d /usr/lib/wrtgram/plugins/help ]; then
+		rm -rf /usr/lib/wrtgram/plugins/help
+	fi
+
+	# Prune deprecated shell plugins now replaced by python
+	for f in dashboard status start fw_list; do
+		if [ -f "/usr/lib/wrtgram/plugins/$$f" ] && [ -f "/usr/lib/wrtgram/plugins/$$f.py" ]; then
+			rm -f "/usr/lib/wrtgram/plugins/$$f"
+		fi
+	done
+
 	/etc/init.d/telegram_bot enable
 	/etc/init.d/lanports enable
 	/etc/init.d/hosts_scan enable

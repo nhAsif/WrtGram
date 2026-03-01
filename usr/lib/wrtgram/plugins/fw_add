@@ -1,4 +1,5 @@
 #!/bin/sh
+# HELP: Block a hostname using a deny rule in firewall, if append time to command will block from 23:00 to 8:00
 
 NAME="$1"
 TIME="$2"

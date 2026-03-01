@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# HELP: Display an interactive dashboard with live router stats and a refresh button.
 import sys, os, subprocess, json, time
 
 sys.path.append("/usr/lib/wrtgram")

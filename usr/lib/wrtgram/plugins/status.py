@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# HELP: Shows the router status, including uptime, CPU load, RAM usage, and CPU temperature.
 import sys, os, subprocess, json, time, math
 
 sys.path.append("/usr/lib/wrtgram")

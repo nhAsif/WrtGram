@@ -1,4 +1,5 @@
 #!/bin/sh
+# HELP: Remove a hostname from a deny firewall rule, if hostname is empty, will remove all rules created by this bot.
 
 NAME="$1" 
 

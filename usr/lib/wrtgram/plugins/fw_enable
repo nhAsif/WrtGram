@@ -1,3 +1,4 @@
 #!/bin/sh
+# HELP: Enable a firewall rule.
 
 ./ctx/fw_list "fw_enable" "Choose a rule to enable:" >/dev/null

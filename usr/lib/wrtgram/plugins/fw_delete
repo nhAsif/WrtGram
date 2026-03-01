@@ -1,4 +1,5 @@
 #!/bin/sh
+# HELP: Remove a hostname from a deny firewall rule, if hostname is empty, will remove all rules created by this bot.
 
 
 ./ctx/fw_list "fw_delete" "Choose a rule to delete:" >/dev/null

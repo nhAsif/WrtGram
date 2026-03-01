@@ -1,4 +1,5 @@
 #!/bin/sh
+# HELP: Disable a firewall rule.
 
 
 ./ctx/fw_list "fw_disable" "Choose a rule to disable:" >/dev/null
