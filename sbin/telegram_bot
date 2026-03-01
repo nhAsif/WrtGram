@@ -1,197 +1,261 @@
-#!/bin/sh
+#!/usr/bin/env python3
+
+import sys, os, subprocess, json, time, re
 
 # Set process name for easier identification in ps/pgrep
-echo -n "telegram_bot" >/proc/$$/comm
+try:
+    with open(f"/proc/{os.getpid()}/comm", "w") as f:
+        f.write("telegram_bot")
+except:
+    pass
 
-# Source shared library for UCI config, TLS settings, and API helpers
-# This provides WRTGRAM_API, WRTGRAM_CHAT_ID, CURL_TLS, tg_send, log_msg
-. /usr/lib/wrtgram/common
+def get_uci(path, default=""):
+    try:
+        return subprocess.check_output(["uci", "-q", "get", path]).decode('utf-8').strip()
+    except Exception:
+        return default
 
-log_msg "telegram_bot: service starting"
+URL = get_uci("wrtgram.global.url")
+KEY = get_uci("wrtgram.global.key")
+WRTGRAM_API = f"{URL}{KEY}" if URL and KEY else ""
+CHAT_ID = get_uci("wrtgram.global.my_chat_id")
+TLS_INSECURE = get_uci("wrtgram.global.tls_insecure") == "1"
+TIMEOUT = int(get_uci("wrtgram.global.timeout", "60"))
 
-timeout=$(uci -q get wrtgram.global.timeout)
-timeout="${timeout:-60}"
-from_addr=$(uci -q get wrtgram.smtp.from)
-to_addr=$(uci -q get wrtgram.smtp.to)
-path="/sbin"
-plugins="/usr/lib/wrtgram/plugins"
-actions="${plugins}/actions"
+var_file = "/var/run/bot_vars"
 
-# Robust ps command detection for cleanup
-if ps w >/dev/null 2>&1; then
-    ps_cmd="ps w"
-else
-    ps_cmd="ps ax"
-fi
+def log_msg(msg):
+    try:
+        proc = subprocess.Popen(["logger", "-t", f"telegram_bot[{os.getpid()}]", "-p", "daemon.info"], stdin=subprocess.PIPE)
+        proc.communicate(msg.encode('utf-8'))
+    except:
+        pass
 
-# Detect timeout command existence for plugin execution safety
-if command -v timeout >/dev/null 2>&1; then
-    timeout_cmd="timeout 30"
-else
-    timeout_cmd=""
-fi
-
-# Persistent offset storage to skip already processed messages
-VAR_FILE="/var/run/bot_vars"
-touch "${VAR_FILE}"
-offset=0
-[ -s "${VAR_FILE}" ] && . "${VAR_FILE}"
-# Ensure offset is numeric
-case "${offset}" in
-    ''|*[!0-9]*) offset=0 ;;
-esac
-
-command_not_found="Sorry,
-I only recognize *commands*.
-Commands are words beginning with a slash.
-Try it !
-Send [/start](/start) to get my commands list."
-
-starting=1
-start_time=$(date +%s)
-
-# Main Event Loop (Stay in foreground for procd management)
-while true; do
-    # Only use offset if we have a valid previous one
-    if [ "${offset}" -gt 0 ]; then
-        query_offset=$((offset + 1))
-    else
-        query_offset=""
-    fi
-
-    # Long-polling for updates
-    updates=$(curl -s ${CURL_TLS} -X GET \
-        "${WRTGRAM_API}/getUpdates?offset=${query_offset}&timeout=${timeout}")
+def tg_api_call(endpoint, form_data=None, data_urlencode=None, method="POST"):
+    if not WRTGRAM_API: return None
     
-    if [ $? -ne 0 ] || [ -z "$updates" ]; then
-        log_msg "telegram_bot: getUpdates failed or empty, retrying in 5s..."
-        sleep 5
-        continue
-    fi
-
-    status=$(jsonfilter -s "$updates" -e "$.ok")
-    if [ "${status}" = "true" ]; then
-        # Process each update sequentially
-        update_ids=$(jsonfilter -s "$updates" -e "$.result[*].update_id")
-
-        for update_id in ${update_ids}; do
-            # Update offset immediately to avoid reprocessing on crash/restart
-            offset="${update_id}"
-            echo "offset=${offset}" > "${VAR_FILE}"
-
-            # Extract basic message info
-            msg_obj=$(jsonfilter -s "$updates" -e "$.result[@.update_id=${update_id}].message")
-            cb_obj=$(jsonfilter -s "$updates" -e "$.result[@.update_id=${update_id}].callback_query")
+    cmd = ["curl", "-s"]
+    if TLS_INSECURE:
+        cmd.append("-k")
+    else:
+        cmd.extend(["--capath", "/etc/ssl/certs"])
+        
+    cmd.extend(["-X", method, f"{WRTGRAM_API}/{endpoint}"])
+    
+    if form_data:
+        for k, v in form_data.items():
+            cmd.extend(["-d", f"{k}={v}"])
             
-            # Determine origin chat ID and message date
-            if [ -n "$msg_obj" ]; then
-                origin=$(echo "$msg_obj" | jsonfilter -e "@.chat.id")
-                msg_date=$(echo "$msg_obj" | jsonfilter -e "@.date")
-                msg_id=$(echo "$msg_obj" | jsonfilter -e "@.message_id")
-                command_text=$(echo "$msg_obj" | jsonfilter -e "@.text")
-                is_a_cmd=$(echo "$msg_obj" | jsonfilter -e "@.entities[*].type")
-            elif [ -n "$cb_obj" ]; then
-                origin=$(echo "$cb_obj" | jsonfilter -e "@.message.chat.id")
-                msg_date=$(echo "$cb_obj" | jsonfilter -e "@.message.date")
-                query_ans=$(echo "$cb_obj" | jsonfilter -e "@.id")
-                msg_id_ans=$(echo "$cb_obj" | jsonfilter -e "@.message.message_id")
-                final_cmd=$(echo "$cb_obj" | jsonfilter -e "@.data")
-            else
-                continue
-            fi
-
-            # Skip messages older than bot start time (on first poll only)
-            if [ "${starting}" = "1" ] && [ "${msg_date:-0}" -lt "${start_time}" ]; then
-                continue
-            fi
-
-            # Authorization Check
-            if [ -z "${WRTGRAM_CHAT_ID}" ] || [ "${origin}" != "${WRTGRAM_CHAT_ID}" ]; then
-                log_msg "Unauthorized access attempt by ID ${origin}"
-                if [ -n "${origin}" ]; then
-                    curl -s ${CURL_TLS} -X POST "${WRTGRAM_API}/sendMessage" \
-                        -d "chat_id=${origin}" \
-                        --data-urlencode "text=This is a private bot."
-                    curl -s ${CURL_TLS} -X POST "${WRTGRAM_API}/leaveChat" -d "chat_id=${origin}"
-                fi
-                continue
-            fi
-
-            # Start "typing" indicator in background
-            /sbin/typing >/dev/null 2>&1 &
-            typing_pid=$!
-
-            # Handle Commands (e.g. /status)
-            if echo "${is_a_cmd}" | grep -q "bot_command"; then
-                cmd=$(echo "${command_text}" | awk '{print $1}')
-                # Extract and sanitize parameters
-                prms=$(echo "${command_text}" | awk '{$1=""; printf "%s", $0}' | sed 's/^[ \t]*//')
-                parms=$(echo "${prms}" | sed 's/[\"&;<>|\\]//g')
-
-                if [ -f "${plugins}${cmd}" ]; then
-                    if [ "${cmd}" = "/reboot" ] && [ "${starting}" = "1" ]; then
-                        : # Skip old reboot commands
-                    else
-                        cd "${plugins}"
-                        log_msg "Call ${cmd} [${parms}]"
-                        # Run plugin and capture output
-                        result=$(${timeout_cmd} "${plugins}${cmd}" ${parms})
-                        /sbin/telegram_sender "${result}"
-                        cd "${path}"
-                    fi
-                else
-                    tg_send "Command *${cmd}* not found!"
-                fi
-
-            # Handle Inline Keyboard Actions
-            elif [ -n "${query_ans}" ]; then
-                fcmd=$(echo "${final_cmd}" | awk -F "|" '{printf $1}')
-                fprms=$(echo "${final_cmd}" | awk -F "|" '{printf $2}')
-                parameter=$(echo "${fprms}" | sed 's/[&;<>|\\]//g')
-
-                if [ -f "${actions}/${fcmd}" ]; then
-                    cd "${actions}"
-                    log_msg "Call Action ${fcmd}"
-                    # Actions use pipe-delimited format: remove_flag|message|optional_keyboard
-                    result=$(IFS="\^"; ${timeout_cmd} "./${fcmd}" ${parameter})
-                    remove=$(echo "${result}" | awk -F "|" '{print $1}')
-                    msg=$(echo "${result}" | awk -F "|" '{print $2}')
-                    keyboard=$(echo "${result}" | awk -F "|" '{print $3}')
-                    
-                    curl -s ${CURL_TLS} -X POST "${WRTGRAM_API}/answerCallbackQuery" \
-                        -d "callback_query_id=${query_ans}" \
-                        -d "text=Updated"
-                    
-                    if [ "${remove}" = "1" ]; then
-                        if [ -n "${keyboard}" ]; then
-                            curl -s ${CURL_TLS} -X POST "${WRTGRAM_API}/editMessageText" \
-                                -d "chat_id=${WRTGRAM_CHAT_ID}" \
-                                -d "message_id=${msg_id_ans}" \
-                                -d "parse_mode=Markdown" \
-                                -d "reply_markup=${keyboard}" \
-                                --data-urlencode "text=${msg}"
-                        else
-                            curl -s ${CURL_TLS} -X POST "${WRTGRAM_API}/editMessageText" \
-                                -d "chat_id=${WRTGRAM_CHAT_ID}" \
-                                -d "message_id=${msg_id_ans}" \
-                                -d "parse_mode=Markdown" \
-                                --data-urlencode "text=${msg}"
-                        fi
-                    fi
-                    cd "${path}"
-                else
-                    tg_send "Command Action *${fcmd}* not found!"
-                fi
-            else
-                # Fallback for plain text messages
-                tg_send "${command_not_found}"
-            fi
+    if data_urlencode:
+        for k, v in data_urlencode.items():
+            cmd.extend(["--data-urlencode", f"{k}={v}"])
             
-            # Stop typing indicator
-            kill "${typing_pid}" 2>/dev/null
-            pids=$(pgrep -f "/sbin/typing" || ${ps_cmd} | grep -v grep | grep typing | awk '{print $1}')
-            [ -n "${pids}" ] && kill ${pids} 2>/dev/null
-        done
-    fi
-    starting=0
-done
+    attempts = 0
+    while attempts < 3:
+        try:
+            output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+            if output:
+                return json.loads(output.decode('utf-8'))
+        except:
+            pass
+        attempts += 1
+        time.sleep(2)
+    return None
+
+def tg_api_call_getUpdates(offset, timeout):
+    if not WRTGRAM_API: return None
+    cmd = ["curl", "-s"]
+    if TLS_INSECURE:
+        cmd.append("-k")
+    else:
+        cmd.extend(["--capath", "/etc/ssl/certs"])
+    
+    cmd.extend(["-X", "GET", f"{WRTGRAM_API}/getUpdates?offset={offset}&timeout={timeout}"])
+    try:
+        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        if output:
+            return json.loads(output.decode('utf-8'))
+    except:
+        pass
+    return None
+
+def send_message(chat_id, text, parse_mode="Markdown"):
+    return tg_api_call("sendMessage", form_data={"chat_id": chat_id, "parse_mode": parse_mode}, data_urlencode={"text": text})
+
+# Persistent offset
+offset = 0
+if os.path.exists(var_file):
+    with open(var_file, "r") as f:
+        content = f.read().strip()
+        if content.startswith("offset="):
+            try:
+                offset = int(content.split("=")[1])
+            except ValueError:
+                pass
+
+def save_offset(o):
+    with open(var_file, "w") as f:
+        f.write(f"offset={o}\n")
+
+starting = True
+start_time = int(time.time())
+
+log_msg("service starting")
+
+if CHAT_ID:
+    send_message(CHAT_ID, "🚀 *WrtGram Bot Started*\nSystem is online and ready for commands! Send [/start](/start) to see available commands.")
+
+while True:
+    try:
+        query_offset = offset + 1 if offset > 0 else ""
+        updates = tg_api_call_getUpdates(query_offset, TIMEOUT)
+        
+        if not updates or str(updates.get("ok")).lower() != "true":
+            log_msg("getUpdates failed or empty, retrying in 5s...")
+            time.sleep(5)
+            continue
+
+        results = updates.get("result", [])
+        for res in results:
+            update_id = res.get("update_id", 0)
+            offset = update_id
+            save_offset(offset)
+            
+            msg_obj = res.get("message")
+            cb_obj = res.get("callback_query")
+            
+            origin = ""
+            msg_date = 0
+            is_cmd = False
+            cmd = ""
+            parms = ""
+            query_ans = ""
+            msg_id_ans = ""
+            final_cmd = ""
+            
+            if msg_obj:
+                origin = str(msg_obj.get("chat", {}).get("id", ""))
+                msg_date = msg_obj.get("date", 0)
+                command_text = msg_obj.get("text", "")
+                entities = msg_obj.get("entities", [])
+                is_cmd = any(ent.get("type") == "bot_command" for ent in entities)
+                
+                parts = command_text.split(maxsplit=1)
+                cmd = parts[0] if parts else ""
+                parms = parts[1] if len(parts) > 1 else ""
+                
+            elif cb_obj:
+                origin = str(cb_obj.get("message", {}).get("chat", {}).get("id", ""))
+                msg_date = cb_obj.get("message", {}).get("date", 0)
+                msg_id_ans = cb_obj.get("message", {}).get("message_id")
+                query_ans = cb_obj.get("id")
+                final_cmd = cb_obj.get("data", "")
+            else:
+                continue
+                
+            if starting and msg_date < start_time:
+                continue
+                
+            if not CHAT_ID or origin != CHAT_ID:
+                log_msg(f"Unauthorized access attempt by ID {origin}")
+                if origin:
+                    send_message(origin, "This is a private bot.")
+                    tg_api_call("leaveChat", form_data={"chat_id": origin})
+                continue
+                
+            typing_proc = subprocess.Popen(["/sbin/typing"])
+            
+            try:
+                if msg_obj and is_cmd:
+                    plugin_path = f"/usr/lib/wrtgram/plugins{cmd}"
+                    if os.path.exists(plugin_path) and os.path.isfile(plugin_path):
+                        if cmd == "/reboot" and starting:
+                            pass
+                        else:
+                            cwd_path = "/usr/lib/wrtgram/plugins"
+                            log_msg(f"Call {cmd} [{parms}]")
+                            
+                            parms_sanitized = re.sub(r'["&;<>|\\]+', '', parms)
+                            p_args = [plugin_path]
+                            if parms_sanitized:
+                                # We split parms exactly like bash did: words
+                                p_args.extend(parms_sanitized.split())
+                                
+                            try:
+                                output = subprocess.check_output(p_args, cwd=cwd_path, timeout=30, stderr=subprocess.STDOUT)
+                                result = output.decode('utf-8')
+                            except subprocess.TimeoutExpired as e:
+                                result = (e.output.decode('utf-8') if e.output else "") + "\n(Command Timed Out)"
+                            except subprocess.CalledProcessError as e:
+                                result = e.output.decode('utf-8') if e.output else "Execution Error"
+                            except Exception as e:
+                                result = str(e)
+                                
+                            subprocess.run(["/sbin/telegram_sender", result])
+                    else:
+                        send_message(CHAT_ID, f"Command *{cmd}* not found!")
+                        
+                elif cb_obj:
+                    # Final cmd inside cb_obj separates fcmd and params with |
+                    parts = final_cmd.split("|", 1)
+                    fcmd = parts[0]
+                    fprms = parts[1] if len(parts) > 1 else ""
+                    
+                    action_path = f"/usr/lib/wrtgram/plugins/actions/{fcmd}"
+                    if os.path.exists(action_path) and os.path.isfile(action_path):
+                        cwd_path = "/usr/lib/wrtgram/plugins/actions"
+                        log_msg(f"Call Action {fcmd}")
+                        parameter = re.sub(r'[&;<>|\\]+', '', fprms)
+                        
+                        p_args = [f"./{fcmd}"]
+                        if parameter:
+                            p_args.append(parameter)
+                        
+                        try:
+                            output = subprocess.check_output(p_args, cwd=cwd_path, timeout=30, stderr=subprocess.STDOUT)
+                            result = output.decode('utf-8')
+                        except Exception as e:
+                            if hasattr(e, 'output') and e.output:
+                                result = e.output.decode('utf-8')
+                            else:
+                                result = "1|Error occurred|"
+                                
+                        # Result logic from bash: remove_flag|message|optional_keyboard
+                        # Some messages might contain `^` used to split but previously we bypassed that in Python wrapper.
+                        # Wait, bash script was `IFS="\^"`. Here we can just take the string and split by | once correctly.
+                        result = result.replace('^', '')
+                        
+                        # Use partition because text could have internal pipelines
+                        parts = result.split("|", 2)
+                        remove = parts[0].strip() if len(parts) > 0 else "0"
+                        msg = parts[1].strip() if len(parts) > 1 else ""
+                        keyboard = parts[2].strip() if len(parts) > 2 else ""
+                        
+                        tg_api_call("answerCallbackQuery", form_data={"callback_query_id": query_ans, "text": "Updated"})
+                        
+                        if remove == "1":
+                            data = {
+                                "chat_id": CHAT_ID,
+                                "message_id": msg_id_ans,
+                                "parse_mode": "Markdown"
+                            }
+                            data_url = {"text": msg}
+                            if keyboard:
+                                data["reply_markup"] = keyboard
+                                
+                            tg_api_call("editMessageText", form_data=data, data_urlencode=data_url)
+                    else:
+                        send_message(CHAT_ID, f"Command Action *{fcmd}* not found!")
+                        
+                elif msg_obj:
+                    send_message(CHAT_ID, "Sorry,\nI only recognize *commands*.\nCommands are words beginning with a slash.\nTry it !\nSend [/start](/start) to get my commands list.")
+                    
+            finally:
+                typing_proc.terminate()
+                subprocess.run('pids=$(pgrep -f "/sbin/typing" 2>/dev/null); [ -n "$pids" ] && kill $pids 2>/dev/null', shell=True)
+                
+        starting = False
+    except Exception as e:
+        log_msg(f"telegram_bot error in main loop: {e}")
+        time.sleep(5)
+

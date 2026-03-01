@@ -13,7 +13,7 @@ define Package/wrtgram
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Telegram BOT for OpenWrt
-  DEPENDS:=+curl +jsonfilter +ca-bundle
+  DEPENDS:=+curl +jsonfilter +ca-bundle +python3-light
 endef
 
 define Package/wrtgram/description

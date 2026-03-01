@@ -36,8 +36,8 @@ KEYBOARD='{"inline_keyboard": [
 ]}'
 
 # Send the initial dashboard message
-tg_api_call "sendMessage" 
-    -d "chat_id=${WRTGRAM_CHAT_ID}" 
-    -d "parse_mode=Markdown" 
-    -d "reply_markup=${KEYBOARD}" 
+tg_api_call "sendMessage" \
+    -d "chat_id=${WRTGRAM_CHAT_ID}" \
+    -d "parse_mode=Markdown" \
+    -d "reply_markup=${KEYBOARD}" \
     --data-urlencode "text=${DASHBOARD_TEXT}" > /dev/null

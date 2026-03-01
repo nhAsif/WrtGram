@@ -1,57 +1,76 @@
-#!/bin/sh
+#!/usr/bin/env python3
 
-. /usr/lib/wrtgram/common
+import sys, os, subprocess, json
 
-items="$1"
+def get_uci(path, default=""):
+    try:
+        return subprocess.check_output(["uci", "-q", "get", path]).decode('utf-8').strip()
+    except Exception:
+        return default
 
-# POSIX-compliant log function (replaces bash-specific 'function log()' and string slicing)
-log_sender() {
-    _text="$*"
-    _ok=$(echo "${_text}" | jsonfilter -e "$.ok" 2>/dev/null)
-    if [ "${_ok}" != "true" ]; then
-        log_msg "telegram_sender: API Error: ${_text}"
-    fi
-}
+URL = get_uci("wrtgram.global.url")
+KEY = get_uci("wrtgram.global.key")
+WRTGRAM_API = f"{URL}{KEY}" if URL and KEY else ""
+CHAT_ID = get_uci("wrtgram.global.my_chat_id")
+TLS_INSECURE = get_uci("wrtgram.global.tls_insecure") == "1"
 
-# POSIX-compliant way to set IFS to newline only
-IFS='
-'
+def log_msg(msg):
+    try:
+        proc = subprocess.Popen(["logger", "-t", f"telegram_sender[{os.getpid()}]", "-p", "daemon.info"], stdin=subprocess.PIPE)
+        proc.communicate(msg.encode('utf-8'))
+    except:
+        pass
 
-count=0
-full=""
-
-# Use a standard for loop with corrected IFS
-for item in $items; do
-    [ -z "$item" ] && continue
+def tg_api_call(endpoint, form_data=None, data_urlencode=None, method="POST"):
+    if not WRTGRAM_API: return None
+    cmd = ["curl", "-s"]
+    if TLS_INSECURE:
+        cmd.append("-k")
+    else:
+        cmd.extend(["--capath", "/etc/ssl/certs"])
+        
+    cmd.extend(["-X", method, f"{WRTGRAM_API}/{endpoint}"])
     
-    item_len=$(printf "%s" "$item" | wc -c)
-    # 4096 is the Telegram message limit
-    if [ $((count + item_len + 1)) -gt 4096 ]; then
-        # Send current buffer before it exceeds limit
-        response=$(tg_api_call "sendMessage" \
-            -d "chat_id=${WRTGRAM_CHAT_ID}" \
-            -d "parse_mode=Markdown" \
-            --data-urlencode "text=${full}")
-        log_sender "$response"
-        full="${item}"
-        count=${item_len}
-    else
-        if [ -z "$full" ]; then
-            full="${item}"
-            count=${item_len}
-        else
-            full="${full}
-${item}"
-            count=$((count + item_len + 1))
-        fi
-    fi
-done
+    if form_data:
+        for k, v in form_data.items():
+            cmd.extend(["-d", f"{k}={v}"])
+            
+    if data_urlencode:
+        for k, v in data_urlencode.items():
+            cmd.extend(["--data-urlencode", f"{k}={v}"])
+            
+    try:
+        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        if output:
+            return json.loads(output.decode('utf-8'))
+    except:
+        pass
+    return None
 
-# Send remaining content
-if [ -n "$full" ]; then
-    response=$(tg_api_call "sendMessage" \
-        -d "chat_id=${WRTGRAM_CHAT_ID}" \
-        -d "parse_mode=Markdown" \
-        --data-urlencode "text=${full}")
-    log_sender "$response"
-fi
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        sys.exit(0)
+        
+    items = sys.argv[1].split('\n')
+    full = ""
+    for item in items:
+        if not item and item is items[-1]: continue
+        
+        item_len = len(item.encode('utf-8'))
+        
+        if len(full.encode('utf-8')) + item_len + 1 > 4096:
+            resp = tg_api_call("sendMessage", form_data={"chat_id": CHAT_ID, "parse_mode": "Markdown"}, data_urlencode={"text": full})
+            if not resp or str(resp.get('ok')).lower() != "true":
+                log_msg(f"API Error: {json.dumps(resp) if resp else 'Connection failed'}")
+            full = item
+        else:
+            if not full:
+                full = item
+            else:
+                full = full + "\n" + item
+
+    if full:
+        resp = tg_api_call("sendMessage", form_data={"chat_id": CHAT_ID, "parse_mode": "Markdown"}, data_urlencode={"text": full})
+        if not resp or str(resp.get('ok')).lower() != "true":
+            log_msg(f"API Error: {json.dumps(resp) if resp else 'Connection failed'}")
+
