@@ -152,20 +152,31 @@ while true; do
                 if [ -f "${actions}/${fcmd}" ]; then
                     cd "${actions}"
                     log_msg "Call Action ${fcmd}"
-                    # Actions use pipe-delimited format: remove_flag|message
+                    # Actions use pipe-delimited format: remove_flag|message|optional_keyboard
                     result=$(IFS="\^"; ${timeout_cmd} "./${fcmd}" ${parameter})
                     remove=$(echo "${result}" | awk -F "|" '{print $1}')
                     msg=$(echo "${result}" | awk -F "|" '{print $2}')
+                    keyboard=$(echo "${result}" | awk -F "|" '{print $3}')
                     
                     curl -s ${CURL_TLS} -X POST "${WRTGRAM_API}/answerCallbackQuery" \
                         -d "callback_query_id=${query_ans}" \
-                        -d "text=${msg}"
+                        -d "text=Updated"
                     
                     if [ "${remove}" = "1" ]; then
-                        curl -s ${CURL_TLS} -X POST "${WRTGRAM_API}/editMessageText" \
-                            -d "chat_id=${WRTGRAM_CHAT_ID}" \
-                            -d "message_id=${msg_id_ans}" \
-                            -d "text=${msg}"
+                        if [ -n "${keyboard}" ]; then
+                            curl -s ${CURL_TLS} -X POST "${WRTGRAM_API}/editMessageText" \
+                                -d "chat_id=${WRTGRAM_CHAT_ID}" \
+                                -d "message_id=${msg_id_ans}" \
+                                -d "parse_mode=Markdown" \
+                                -d "reply_markup=${keyboard}" \
+                                --data-urlencode "text=${msg}"
+                        else
+                            curl -s ${CURL_TLS} -X POST "${WRTGRAM_API}/editMessageText" \
+                                -d "chat_id=${WRTGRAM_CHAT_ID}" \
+                                -d "message_id=${msg_id_ans}" \
+                                -d "parse_mode=Markdown" \
+                                --data-urlencode "text=${msg}"
+                        fi
                     fi
                     cd "${path}"
                 else

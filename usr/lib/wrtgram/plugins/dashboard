@@ -1,0 +1,43 @@
+#!/bin/sh
+
+. /usr/lib/wrtgram/common
+
+# ── Stats ─────────────────────────────────────────────────────────────────────
+UPTIME=$(uptime | sed -n 's/.*up \([^,]*\), .*/\1/p')
+LOAD=$(uptime | sed -n 's/.*load average: \(.*\)/\1/p')
+MEM_INFO=$(free | grep "Mem:")
+TOTAL_MEM=$(echo "$MEM_INFO" | awk '{print $2}')
+USED_MEM=$(echo "$MEM_INFO" | awk '{print $3}')
+MEM_PERC=$((USED_MEM * 100 / TOTAL_MEM))
+
+# WAN Info
+WAN_IP=$(ubus call network.interface.wan status 2>/dev/null | jsonfilter -e "@['ipv4-address'][0].address" 2>/dev/null)
+[ -z "$WAN_IP" ] && WAN_IP="Disconnected"
+
+# Thermal
+TEMP="N/A"
+if [ -f /sys/class/thermal/thermal_zone0/temp ]; then
+    TEMP=$(awk '{printf "%.1f°C", $1/1000}' /sys/class/thermal/thermal_zone0/temp)
+fi
+
+DASHBOARD_TEXT="🖥️ *Router Dashboard*
+━━━━━━━━━━━━━━━━━━━━
+🕒 *Uptime:* ${UPTIME}
+🔥 *Load:* ${LOAD}
+🧠 *RAM:* ${MEM_PERC}%
+🌡️ *Temp:* ${TEMP}
+🌐 *WAN IP:* ${WAN_IP}
+━━━━━━━━━━━━━━━━━━━━
+_Last Update: $(date "+%H:%M:%S")_"
+
+KEYBOARD='{"inline_keyboard": [
+    [{"callback_data": "dashboard|", "text": "🔄 Refresh"}],
+    [{"callback_data": "reboot|", "text": "♻️ Reboot"}]
+]}'
+
+# Send the initial dashboard message
+tg_api_call "sendMessage" 
+    -d "chat_id=${WRTGRAM_CHAT_ID}" 
+    -d "parse_mode=Markdown" 
+    -d "reply_markup=${KEYBOARD}" 
+    --data-urlencode "text=${DASHBOARD_TEXT}" > /dev/null

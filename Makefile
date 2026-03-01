@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=wrtgram
 
-PKG_VERSION:=2.3.2
+PKG_VERSION:=2.3.3
 PKG_RELEASE:=1
 
 PKG_LICENSE:=GPL-2.0
@@ -71,6 +71,7 @@ define Package/wrtgram/install
 				./usr/lib/wrtgram/plugins/actions/interface_down \
         		./usr/lib/wrtgram/plugins/actions/interface_restart \
         		./usr/lib/wrtgram/plugins/actions/interface_up \
+				./usr/lib/wrtgram/plugins/actions/dashboard \
 		$(1)/usr/lib/wrtgram/plugins/actions
 	
 	$(INSTALL_DIR) $(1)/usr/lib/wrtgram/plugins/ctx
@@ -125,6 +126,7 @@ define Package/wrtgram/install
 				./usr/lib/wrtgram/plugins/help/bw_stats \
 				./usr/lib/wrtgram/plugins/help/version \
 				./usr/lib/wrtgram/plugins/help/lan_scan \
+				./usr/lib/wrtgram/plugins/help/dashboard \
 		$(1)/usr/lib/wrtgram/plugins/help
 
 	$(INSTALL_DIR) $(1)/usr/lib/wrtgram/plugins
@@ -170,6 +172,7 @@ define Package/wrtgram/install
 				./usr/lib/wrtgram/plugins/bw_stats \
 				./usr/lib/wrtgram/plugins/version \
 				./usr/lib/wrtgram/plugins/lan_scan \
+				./usr/lib/wrtgram/plugins/dashboard \
 		$(1)/usr/lib/wrtgram/plugins
 
 	$(INSTALL_DIR) $(1)/sbin
