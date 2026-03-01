@@ -11,6 +11,7 @@ The WrtGram bot operates on a simple, yet powerful, plugin architecture:
 *   **Action Scripts (`usr/lib/wrtgram/plugins/actions/`):** These scripts are executed in response to inline keyboard button presses, typically after a "context" script has presented options to the user.
 *   **Context Scripts (`usr/lib/wrtgram/plugins/ctx/`):** These scripts are used for commands that require user interaction. They display options (e.g., via inline keyboards) and set up the context for subsequent "action" scripts.
 *   **Help Files (`usr/lib/wrtgram/plugins/help/`):** These are plain text files with the same name as a plugin. Their content is displayed when the user runs the `/start` command, providing built-in help for each command.
+*   **Shared Library (`usr/lib/wrtgram/common`):** A shared shell library sourced by `sbin` scripts. Provides `WRTGRAM_API`, `CURL_TLS`, `tg_api_call` (with retry/backoff), and `tg_send`. Plugin scripts may also source it for advanced use.
 *   **OpenWrt Makefile:** The project is packaged as an OpenWrt IPK. The `Makefile` defines which files are included in the final package and where they are installed on the router. Any new plugin files *must* be added to the `Makefile` to be deployed.
 
 ## Step-by-Step Guide to Adding a New Plugin
@@ -40,12 +41,47 @@ To add a new command plugin (e.g., `/mycommand`), follow these steps:
         This command greets the user.
         ```
 
-### 3. (Optional) Create Interactive Context and Action Scripts
+### (Optional) Using the Shared Library
+
+For plugins that need to send additional Telegram messages (e.g., progress updates), you can source the shared library:
+
+```sh
+#!/bin/sh
+. /usr/lib/wrtgram/common
+
+# tg_send "message" — sends a message with retry/backoff
+# tg_api_call "endpoint" [curl args] — raw API caller
+# WRTGRAM_API, WRTGRAM_CHAT_ID, CURL_TLS — pre-set variables
+
+echo "Normal output goes back to user automatically."
+```
+
+### (Optional) Create Interactive Context and Action Scripts
 
 If your command requires user interaction (e.g., selecting from a list of options using inline keyboard buttons):
 
-1.  **Create a Context Script:** `usr/lib/wrtgram/plugins/ctx/mycommand_ctx`. This script will generate the inline keyboard options.
-2.  **Create one or more Action Scripts:** `usr/lib/wrtgram/plugins/actions/mycommand_action1`, `usr/lib/wrtgram/plugins/actions/mycommand_action2`, etc. These scripts will be executed when the user taps an inline keyboard button.
+1.  **Create a Context Script:** `usr/lib/wrtgram/plugins/ctx/mycommand_ctx`. This script generates the inline keyboard. It should output a Telegram `reply_markup` JSON payload.
+2.  **Create one or more Action Scripts:** `usr/lib/wrtgram/plugins/actions/mycommand_action`. These scripts are called when the user taps a button.
+
+#### Action Script Response Contract
+
+Action scripts receive callback data (the `data` field of `InlineKeyboardButton`) as arguments, with `^` as the IFS delimiter. They must produce exactly one line of output in pipe-delimited format:
+
+```
+<remove>|<message>
+```
+
+- `<remove>`: `1` to delete/edit the original keyboard message, `0` to leave it.
+- `<message>`: The text shown in the Telegram callback answer popup.
+
+Example:
+```sh
+#!/bin/sh
+# actions/mycommand_action
+uci set mypackage.myflag=1
+uci commit
+echo "1|Setting applied!"
+```
 
 ### 4. Update the OpenWrt `Makefile`
 

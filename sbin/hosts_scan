@@ -1,27 +1,48 @@
 #!/bin/sh
 
-mkdir -p /usr/lib/wrtgram/arps &>/dev/null
+. /usr/lib/wrtgram/common
 
-(while [ true ] 
-do
+mkdir -p /usr/lib/wrtgram/arps 2>/dev/null
 
-	for line in $(cat /proc/net/arp | grep "192.168.250"); do
-		IP=$(echo "$line" | awk '{print $1}')
-		MAC=$(echo "$line" | awk '{print $4}')
-		LAST="NULL"
-		ping $IP -w 1 -q &>/dev/null
-		[ $? == 0 ]  && RESULT="UP" || RESULT="DOWN"
-		if [ -e /usr/lib/wrtgram/arps/$IP ]; then
-			LAST=$(cat /usr/lib/wrtgram/arps/$IP)
-		fi
-		if [ "${LAST}" != "${RESULT}" ];then
-			name=$(cat /tmp/dhcp.leases | grep " ${IP} " | awk '{print $4}')
-			[ "${name}" == "" ] && name=$(cat /tmp/hosts/dhcp.cfg01411c | grep "^${IP}" | awk '{print $2}')
-			date=$(date "+%d/%m/%Y %I:%M %p")
-			telegram=$(echo -e "📱 *Device:* ${name}\n📅 *Data:* ${date}\n🌐 *IP:* ${IP}\n🔢 *MAC:* ${MAC}\n📶 *State:* ${RESULT}")
-			/sbin/telebot "$telegram"
-		fi
-		echo -en "${RESULT}" > /usr/lib/wrtgram/arps/$IP
-	done 
-	sleep 300
-done)&
+# Dynamically determine LAN subnet prefix from UCI instead of hardcoding.
+LAN_IP=$(uci -q get network.lan.ipaddr)
+if [ -z "$LAN_IP" ]; then
+    logger -t "wrtgram[$$]" -p daemon.warn "hosts_scan: could not read network.lan.ipaddr, defaulting to 192.168.1"
+    LAN_PREFIX="192.168.1"
+else
+    LAN_PREFIX=$(echo "$LAN_IP" | cut -d. -f1-3)
+fi
+
+(while true; do
+
+    while read -r line; do
+        IP=$(echo "$line" | awk '{print $1}')
+        MAC=$(echo "$line" | awk '{print $4}')
+        LAST="NULL"
+
+        ping "$IP" -w 1 -q >/dev/null 2>&1
+        if [ $? -eq 0 ]; then
+            RESULT="UP"
+        else
+            RESULT="DOWN"
+        fi
+
+        if [ -e "/usr/lib/wrtgram/arps/${IP}" ]; then
+            LAST=$(cat "/usr/lib/wrtgram/arps/${IP}")
+        fi
+
+        if [ "${LAST}" != "${RESULT}" ]; then
+            name=$(grep " ${IP} " /tmp/dhcp.leases 2>/dev/null | awk '{print $4}')
+            [ -z "${name}" ] && name=$(grep "^${IP}" /tmp/hosts/dhcp.cfg01411c 2>/dev/null | awk '{print $2}')
+            date=$(date "+%d/%m/%Y %I:%M %p")
+            /sbin/telebot "$(printf "📱 *Device:* %s\n📅 *Date:* %s\n🌐 *IP:* %s\n🔢 *MAC:* %s\n📶 *State:* %s" \
+                "${name:-Unknown}" "$date" "$IP" "$MAC" "$RESULT")"
+        fi
+
+        echo -n "${RESULT}" >"/usr/lib/wrtgram/arps/${IP}"
+    done <<EOF
+$(grep "${LAN_PREFIX}" /proc/net/arp)
+EOF
+
+    sleep 300
+done) &

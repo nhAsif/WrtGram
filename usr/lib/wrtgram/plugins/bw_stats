@@ -1,0 +1,53 @@
+#!/bin/sh
+
+echo "📶 *Bandwidth Statistics*"
+echo ""
+
+# Try vnstat first (install with: opkg install vnstat2)
+if command -v vnstat >/dev/null 2>&1; then
+    echo "_Source: vnstat (historical totals)_"
+    echo ""
+    IFACES=$(vnstat --json 2>/dev/null | jsonfilter -e "@.interfaces[*].name" 2>/dev/null)
+    if [ -n "$IFACES" ]; then
+        for iface in $IFACES; do
+            stats=$(vnstat -i "$iface" --json 2>/dev/null)
+            RX=$(echo "$stats" | jsonfilter -e "@.interfaces[0].traffic.total.rx" 2>/dev/null)
+            TX=$(echo "$stats" | jsonfilter -e "@.interfaces[0].traffic.total.tx" 2>/dev/null)
+            RX="${RX:-0}"
+            TX="${TX:-0}"
+            RX_HUMAN=$(awk -v b="$RX" 'BEGIN {
+                if (b>=1073741824) printf "%.2f GiB", b/1073741824
+                else if (b>=1048576) printf "%.2f MiB", b/1048576
+                else printf "%d KiB", b/1024
+            }')
+            TX_HUMAN=$(awk -v b="$TX" 'BEGIN {
+                if (b>=1073741824) printf "%.2f GiB", b/1073741824
+                else if (b>=1048576) printf "%.2f MiB", b/1048576
+                else printf "%d KiB", b/1024
+            }')
+            printf "*%s*\n  📥 RX: %s\n  📤 TX: %s\n\n" "$iface" "$RX_HUMAN" "$TX_HUMAN"
+        done
+        exit 0
+    fi
+fi
+
+# Fallback: live /proc/net/dev counters (since-boot totals)
+echo "_Source: /proc/net/dev (since last boot)_"
+echo "_Install vnstat2 for historical stats: opkg install vnstat2_"
+echo ""
+
+awk 'NR>2 {
+    gsub(/:/,"",$1)
+    if ($1 == "lo") next
+    rx_bytes = $2; tx_bytes = $10
+    printf "*%s*\n", $1
+    printf "  📥 RX: "
+    if (rx_bytes >= 1073741824) printf "%.2f GiB\n", rx_bytes/1073741824
+    else if (rx_bytes >= 1048576) printf "%.2f MiB\n", rx_bytes/1048576
+    else printf "%.2f KiB\n", rx_bytes/1024
+    printf "  📤 TX: "
+    if (tx_bytes >= 1073741824) printf "%.2f GiB\n", tx_bytes/1073741824
+    else if (tx_bytes >= 1048576) printf "%.2f MiB\n", tx_bytes/1048576
+    else printf "%.2f KiB\n", tx_bytes/1024
+    printf "\n"
+}' /proc/net/dev

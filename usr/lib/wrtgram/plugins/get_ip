@@ -1,4 +1,18 @@
 #!/bin/sh
 
-ip=$(ifconfig eth0.2 | grep inet | grep -v inet6 | awk '{print $2}' | awk -F : '{print "*IP:* " $2}')
-echo $ip
+# Dynamically determine WAN interface from UCI/ubus — avoids hardcoded eth0.2
+WAN_IFACE=$(ubus call network.interface.wan status 2>/dev/null \
+    | jsonfilter -e "@['l3-device']" 2>/dev/null)
+[ -z "$WAN_IFACE" ] && WAN_IFACE=$(uci -q get network.wan.device)
+[ -z "$WAN_IFACE" ] && WAN_IFACE=$(uci -q get network.wan.ifname)
+[ -z "$WAN_IFACE" ] && WAN_IFACE="eth0.2"
+
+# Support both legacy "inet addr:x.x.x.x" and modern "inet x.x.x.x" ifconfig formats
+IP=$(ifconfig "$WAN_IFACE" 2>/dev/null | grep "inet addr" | awk '{print $2}' | cut -d: -f2)
+[ -z "$IP" ] && IP=$(ifconfig "$WAN_IFACE" 2>/dev/null | grep -oE 'inet [0-9.]+' | awk '{print $2}')
+
+if [ -n "$IP" ]; then
+    echo "*IP (${WAN_IFACE}):* ${IP}"
+else
+    echo "Could not determine WAN IP for interface \`${WAN_IFACE}\`."
+fi

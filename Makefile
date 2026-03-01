@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=wrtgram
 
-PKG_VERSION:=2.2
+PKG_VERSION:=2.3
 PKG_RELEASE:=1
 
 PKG_LICENSE:=GPL-2.0
@@ -12,10 +12,7 @@ include $(INCLUDE_DIR)/package.mk
 define Package/wrtgram
   SECTION:=net
   CATEGORY:=Network
-  TITLE:=Telegram BOT for openwrt
-  URL:=https://github.com/nhAsif/WrtGram
-  PKGARCH:=all
-  TITLE:=Telegram for openwrt BOT
+  TITLE:=Telegram BOT for OpenWrt
 endef
 
 define Package/wrtgram/description
@@ -50,6 +47,10 @@ define Package/wrtgram/install
 	$(INSTALL_DIR) $(1)/etc/wrtgram
 	$(INSTALL_CONF) ./etc/wrtgram/macaddr.ignore \
 		$(1)/etc/wrtgram/macaddr.ignore
+
+	$(INSTALL_DIR) $(1)/usr/lib/wrtgram
+	$(INSTALL_BIN) ./usr/lib/wrtgram/common \
+		$(1)/usr/lib/wrtgram
 
 	$(INSTALL_DIR) $(1)/usr/share/wrtgram
 	echo "$(PKG_VERSION)-$(PKG_RELEASE)" > $(1)/usr/share/wrtgram/version
@@ -120,6 +121,8 @@ define Package/wrtgram/install
 				./usr/lib/wrtgram/plugins/help/status \
 				./usr/lib/wrtgram/plugins/help/cf_tunnel \
 				./usr/lib/wrtgram/plugins/help/cf_tunnel_stop \
+				./usr/lib/wrtgram/plugins/help/bw_stats \
+				./usr/lib/wrtgram/plugins/help/version \
 				./usr/lib/wrtgram/plugins/help/lan_scan \
 		$(1)/usr/lib/wrtgram/plugins/help
 
@@ -163,6 +166,8 @@ define Package/wrtgram/install
 				./usr/lib/wrtgram/plugins/status \
 				./usr/lib/wrtgram/plugins/cf_tunnel \
 				./usr/lib/wrtgram/plugins/cf_tunnel_stop \
+				./usr/lib/wrtgram/plugins/bw_stats \
+				./usr/lib/wrtgram/plugins/version \
 				./usr/lib/wrtgram/plugins/lan_scan \
 		$(1)/usr/lib/wrtgram/plugins
 
@@ -192,7 +197,7 @@ endef
 
 define Package/wrtgram/prerm
 #!/bin/sh
-if [ -n "$${IPKG_INSTROOT}" ]; then
+if [ -z "$${IPKG_INSTROOT}" ]; then
 	/etc/init.d/telegram_bot stop
 	/etc/init.d/lanports stop
 	/etc/init.d/hosts_scan stop

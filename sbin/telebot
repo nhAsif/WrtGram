@@ -1,14 +1,14 @@
 #!/bin/sh
 
-export PATH='/usr/bin:/usr/sbin:/bin:/sbin'
-
-url=$(uci -q get wrtgram.global.url)
-key=$(uci -q get wrtgram.global.key)
-api="$url$key"
-my_chat_id=$(uci -q get wrtgram.global.my_chat_id)
+. /usr/lib/wrtgram/common
 
 command="$1"
 
-command_new=${command//_/\\_}
+# Escape underscores for Markdown (POSIX-compatible via sed)
+command_new=$(echo "$command" | sed 's/_/\\_/g')
 
-curl -k -s -X POST $api/sendMessage -d chat_id=$my_chat_id -d parse_mode=Markdown --data-urlencode text="$command_new" | logger -t "telegram_bot[$$]" -p daemon.info
+tg_api_call "sendMessage" \
+    -d "chat_id=${WRTGRAM_CHAT_ID}" \
+    -d "parse_mode=Markdown" \
+    --data-urlencode "text=${command_new}" \
+    | logger -t "telegram_bot[$$]" -p daemon.info

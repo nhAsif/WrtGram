@@ -1,0 +1,28 @@
+#!/bin/sh
+
+INSTALLED=$(cat /usr/share/wrtgram/version 2>/dev/null || echo "unknown")
+
+echo "🤖 *WrtGram Version*"
+echo ""
+echo "📦 *Installed:* v${INSTALLED}"
+echo ""
+
+# Check GitHub for the latest release tag
+LATEST=$(curl -s --capath /etc/ssl/certs \
+    "https://api.github.com/repos/nhAsif/WrtGram/releases/latest" 2>/dev/null \
+    | jsonfilter -e "@.tag_name" 2>/dev/null)
+
+if [ -n "$LATEST" ]; then
+    echo "🌐 *Latest:* ${LATEST}"
+    echo ""
+    if [ "v${INSTALLED}" = "$LATEST" ]; then
+        echo "✅ You are up to date!"
+    else
+        echo "⬆️ Update available! Install with:"
+        echo "\`\`\`"
+        echo "opkg update && opkg install wrtgram"
+        echo "\`\`\`"
+    fi
+else
+    echo "🌐 *Latest:* Could not check (no internet or API unavailable)"
+fi

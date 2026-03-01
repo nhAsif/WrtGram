@@ -1,0 +1,63 @@
+#!/bin/sh
+# WrtGram Shared Library
+# Source this file at the top of any sbin script with: . /usr/lib/wrtgram/common
+# Do NOT execute this file directly.
+
+PATH='/usr/bin:/usr/sbin:/bin:/sbin'
+
+# ── UCI Config ────────────────────────────────────────────────────────────────
+WRTGRAM_URL=$(uci -q get wrtgram.global.url)
+WRTGRAM_KEY=$(uci -q get wrtgram.global.key)
+WRTGRAM_API="${WRTGRAM_URL}${WRTGRAM_KEY}"
+WRTGRAM_CHAT_ID=$(uci -q get wrtgram.global.my_chat_id)
+WRTGRAM_IGNORED_MACS=$(uci -q get wrtgram.global.ignored_macaddrs_file)
+WRTGRAM_IGNORED_MACS="${WRTGRAM_IGNORED_MACS:-/etc/wrtgram/macaddr.ignore}"
+
+# ── TLS Configuration ─────────────────────────────────────────────────────────
+# Set tls_insecure to '1' in /etc/config/wrtgram to disable certificate verification.
+# Requires the 'ca-certificates' package for secure mode (default).
+_tls_insecure=$(uci -q get wrtgram.global.tls_insecure)
+if [ "${_tls_insecure}" = "1" ]; then
+    CURL_TLS="-k"
+else
+    CURL_TLS="--capath /etc/ssl/certs"
+fi
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+# POSIX-compliant log function
+log_msg() {
+    echo "$*" | logger -t "wrtgram[$$]" -p daemon.info
+}
+
+# ── Telegram API call with retry & exponential backoff ────────────────────────
+# Usage: tg_api_call <endpoint> [extra curl args...]
+# Returns the raw JSON response from the Telegram API.
+tg_api_call() {
+    _endpoint="$1"
+    shift
+    _attempt=0
+    _max_attempts=3
+    _delay=2
+    while [ "${_attempt}" -lt "${_max_attempts}" ]; do
+        _response=$(curl -s ${CURL_TLS} -X POST \
+            "${WRTGRAM_API}/${_endpoint}" "$@" 2>/dev/null)
+        if [ $? -eq 0 ] && [ -n "${_response}" ]; then
+            echo "${_response}"
+            return 0
+        fi
+        _attempt=$((_attempt + 1))
+        [ "${_attempt}" -lt "${_max_attempts}" ] && sleep "${_delay}"
+        _delay=$((_delay * 2))
+    done
+    log_msg "tg_api_call: failed after ${_max_attempts} attempts for: ${_endpoint}"
+    return 1
+}
+
+# ── Send a plain text message to the configured chat ─────────────────────────
+# Usage: tg_send "message text"
+tg_send() {
+    tg_api_call "sendMessage" \
+        -d "chat_id=${WRTGRAM_CHAT_ID}" \
+        -d "parse_mode=Markdown" \
+        --data-urlencode "text=$1"
+}

@@ -1,5 +1,7 @@
 # WrtGram
 
+![ShellCheck](https://github.com/nhAsif/WrtGram/actions/workflows/simple-build-release.yml/badge.svg)
+
 A set of scripts to manage and monitor an OpenWrt router through Telegram.
 
 WrtGram provides a simple yet powerful way to interact with your OpenWrt router using a Telegram bot. It features a lightweight, extensible plugin architecture, allowing you to easily add new commands and features.
@@ -45,6 +47,7 @@ The core of the project is a daemon script that polls the Telegram API for new m
     config wrtgram 'global'
         option key '<YOUR BOT TOKEN>'
         option my_chat_id '<YOUR CHAT ID>'
+        option tls_insecure '0'   # Set to '1' only if ca-certificates is not installed
     ```
 
 4.  **Enable and Start the Services:**
@@ -65,6 +68,7 @@ Plugins are simple shell scripts located in the `/usr/lib/wrtgram/plugins/` dire
 
 The following commands are included by default:
 
+*   `/bw_stats`: Shows per-interface bandwidth stats (RX/TX). Uses `vnstat` if installed, otherwise reads `/proc/net/dev`.
 *   `/cf_tunnel [port]`: Creates a temporary Cloudflare tunnel to a specified port (defaults to 80).
 *   `/cf_tunnel_stop`: Stops the running Cloudflare tunnel.
 *   `/fw_add <hostname> [time]`: Blocks a hostname in the firewall. Can be time-based.
@@ -76,7 +80,7 @@ The following commands are included by default:
 *   `/fwr_disable`: Disables a redirect firewall rule.
 *   `/fwr_enable`: Enables a redirect firewall rule.
 *   `/fwr_list`: Lists all redirect firewall rules.
-*   `/get_ip`: Gets the WAN IP address.
+*   `/get_ip`: Gets the WAN IP address (dynamically detects the WAN interface).
 *   `/get_mac <mac_address>`: Gets the vendor of a MAC address.
 *   `/get_ping <host>`: Pings a host to check its status.
 *   `/get_uptime`: Shows the router's uptime.
@@ -97,20 +101,42 @@ The following commands are included by default:
 *   `/proc_stop <service>`: Stops a service.
 *   `/reboot`: Reboots the router.
 *   `/start`: Shows the main help menu with all commands.
-*   `/status`: Shows router status including uptime, CPU load, RAM usage, and temperature.
+*   `/status`: Shows router status including uptime, WAN uptime, CPU load, RAM usage, disk usage, temperature (all zones), and active connections.
 *   `/swports_list`: Lists the status of all switch ports.
 *   `/tmate`: Creates a new tmate session for remote access.
+*   `/version`: Shows the installed WrtGram version and checks GitHub for updates.
 *   `/wifi_disable <device>`: Disables a Wi-Fi radio.
 *   `/wifi_enable <device>`: Enables a Wi-Fi radio.
 *   `/wifi_list`: Lists all Wi-Fi devices.
 *   `/wifi_restart <device>`: Restarts a Wi-Fi radio.
 *   `/wll_list`: Lists connected Wi-Fi clients.
 
+
 ### Creating Your Own Plugins
 
-To add a new command, simply create a new shell script in the `/usr/lib/wrtgram/plugins/` directory. The script can contain any valid OpenWrt shell commands. Any output from the script will be sent back to the user as a message.
+To add a new command, create a shell script in `/usr/lib/wrtgram/plugins/`. The script name maps directly to the Telegram command (e.g., `mycommand` → `/mycommand`). Output is sent back to the user.
 
-You can also add a help file for your command in the `/usr/lib/wrtgram/plugins/help/` directory. The name of the help file should be the same as your command's name.
+You can source the shared library for convenient API helpers:
+
+```sh
+#!/bin/sh
+. /usr/lib/wrtgram/common  # provides WRTGRAM_API, CURL_TLS, tg_send, tg_api_call
+
+echo "Hello from myplugin!"
+```
+
+Add a help file with the same name in `/usr/lib/wrtgram/plugins/help/`. See [plugins_README.md](plugins_README.md) for a full step-by-step guide.
+
+### Ignored MAC Addresses
+
+The file `/etc/wrtgram/macaddr.ignore` contains MAC addresses that should be excluded from new-device connection notifications (one per line, lowercase, colon-separated):
+
+```
+aa:bb:cc:dd:ee:ff
+11:22:33:44:55:66
+```
+
+Use `/ignoredmac_add <mac>` or edit the file directly.
 
 ## Services
 

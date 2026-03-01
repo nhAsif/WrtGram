@@ -48,8 +48,28 @@ jobs:
           echo "sha=$(echo ${sha::7})" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
 
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck on sbin scripts
+        run: |
+          shellcheck sbin/telegram_bot sbin/telegram_sender sbin/telebot \
+            sbin/lanports sbin/hosts_scan sbin/typing
+
+      - name: Run ShellCheck on plugin scripts
+        run: |
+          find usr/lib/wrtgram/plugins -maxdepth 1 -type f | xargs shellcheck
+          find usr/lib/wrtgram/plugins/actions -type f | xargs shellcheck
+          find usr/lib/wrtgram/plugins/ctx -type f | xargs shellcheck
+
   build-openwrt:
-    needs: prepare
+    needs: [prepare, shellcheck]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -240,9 +260,9 @@ jobs:
         uses: slord399/action-automatic-releases@v1.0.1
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          automatic_release_tag: v2.2
+          automatic_release_tag: v${{ needs.prepare.outputs.version }}
           prerelease: false
-          title: WrtGram Release v2.2
+          title: WrtGram Release v${{ needs.prepare.outputs.version }}
           files: |
             ./repo/packages/*.ipk
             ./repo/packages/Packages
