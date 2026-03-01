@@ -34,6 +34,6 @@ This document tracks the progress of migrating WrtGram from shell scripts to Pyt
 - [x] **Interactive Menus (Conversations)**: 
   - Implement sequential state for commands (e.g., `/fw_add` -> Box asks for IP -> Box asks for Time -> Complete).
 
-## ⏳ Phase 5: Build System & Repo Cleanup
-- [ ] Merge tiny `plugins/help/` text files into Python `docstrings` or comments to reduce disk I/O.
-- [ ] Create a post-install migration script to gracefully prune deprecated shell files from legacy installations.
+## ✅ Phase 5: Build System & Repo Cleanup (COMPLETED)
+- [x] Merge tiny `plugins/help/` text files into Python `docstrings` or comments to reduce disk I/O.
+- [x] Create a post-install migration script to gracefully prune deprecated shell files from legacy installations.

@@ -3,26 +3,31 @@ import sys, os, asyncio, subprocess, time, json
 sys.path.append("/usr/lib/wrtgram")
 import wrtapi
 
-ARPS_DIR = "/usr/lib/wrtgram/arps"
+# Paths
+STATE_DIR = "/tmp/wrtgram_hosts"
+SEEN_FILE = "/etc/wrtgram/hosts.seen"
 OUI_DB_PATH = "/usr/lib/wrtgram/oui.json"
+# Get ignore file from UCI
+IGNORE_FILE = wrtapi.get_uci("wrtgram.global.ignored_macaddrs_file", "/etc/wrtgram/macaddr.ignore")
 
-os.makedirs(ARPS_DIR, exist_ok=True)
+os.makedirs(STATE_DIR, exist_ok=True)
+if not os.path.exists(SEEN_FILE):
+    try: os.makedirs(os.path.dirname(SEEN_FILE), exist_ok=True)
+    except: pass
+    with open(SEEN_FILE, "a") as f: pass
 
 def load_oui():
     if os.path.exists(OUI_DB_PATH):
         try:
             with open(OUI_DB_PATH, "r") as f:
                 return json.load(f)
-        except:
-            pass
+        except: pass
     return {}
 
 def get_vendor(mac, oui_db):
     prefix = mac.upper()[:8].replace("-", ":")
+    if prefix in oui_db: return oui_db[prefix]
     
-    if prefix in oui_db:
-        return oui_db[prefix]
-        
     fallback = {
         "00:1C:B3": "Apple", "00:1E:52": "Apple", "00:23:12": "Apple",
         "00:23:32": "Apple", "00:23:DF": "Apple", "00:24:36": "Apple",
@@ -44,9 +49,26 @@ def get_vendor(mac, oui_db):
         "14:B9:68": "Huawei", "20:08:ED": "Huawei", "34:6B:D3": "Huawei",
         "00:0B:82": "Grandstream",
     }
-    return oui_db.get(prefix, fallback.get(prefix, "Unknown Brand"))
+    return fallback.get(prefix, "Unknown Brand")
+
+def load_list(path):
+    if not os.path.exists(path): return set()
+    try:
+        with open(path, "r") as f:
+            return set(line.strip().upper() for line in f if line.strip())
+    except: return set()
+
+def save_seen(mac):
+    mac = mac.upper()
+    seen = load_list(SEEN_FILE)
+    if mac not in seen:
+        try:
+            with open(SEEN_FILE, "a") as f:
+                f.write(mac + "\n")
+        except: pass
 
 async def ping_ip(ip):
+    # Only ping once to speed up loop
     proc = await asyncio.create_subprocess_exec(
         "ping", ip, "-c", "1", "-W", "1", "-q",
         stdout=asyncio.subprocess.DEVNULL,
@@ -57,56 +79,59 @@ async def ping_ip(ip):
 
 def get_hostname(ip):
     try:
+        # Check DHCP leases
         if os.path.exists("/tmp/dhcp.leases"):
             with open("/tmp/dhcp.leases", "r") as f:
                 for line in f:
                     parts = line.strip().split()
                     if len(parts) >= 4 and parts[2] == ip:
                         if parts[3] != "*": return parts[3]
-    except Exception:
-        pass
-    
-    try:
-        hosts_files = [f for f in os.listdir("/tmp/hosts") if f.startswith("dhcp.cfg")]
-        for hf in hosts_files:
-            with open(os.path.join("/tmp/hosts", hf), "r") as f:
-                for line in f:
-                    parts = line.strip().split()
-                    if len(parts) >= 2 and parts[0] == ip:
-                        return parts[1]
-    except Exception:
-        pass
+        # Check etc/hosts or dhcp.cfg.local if exists
+        for h in ["/tmp/hosts/dhcp.cfg.0", "/tmp/hosts/dhcp.cfg.1"]:
+            if os.path.exists(h):
+                with open(h, "r") as f:
+                    for line in f:
+                        parts = line.split()
+                        if len(parts) >= 2 and parts[0] == ip: return parts[1]
+    except: pass
     return "Unknown"
+
+def get_lan_subnet():
+    try:
+        out = subprocess.check_output(["ubus", "call", "network.interface.lan", "status"], stderr=subprocess.DEVNULL)
+        data = json.loads(out)
+        addrs = data.get("ipv4-address", [])
+        if addrs:
+            return ".".join(addrs[0].get("address").split('.')[:3])
+    except: pass
+    return "192.168.1"
 
 async def scan_loop():
     oui_db = load_oui()
-    chat_id = wrtapi.CHAT_ID
-    if not chat_id:
-        wrtapi.log_msg("hosts_scan", "My Chat ID is empty. Cannot send messages.")
-        
-    lan_ip = wrtapi.get_uci("network.lan.ipaddr")
-    lan_prefix = "192.168.1"
-    if lan_ip:
-        parts = lan_ip.split('.')
-        if len(parts) == 4:
-            lan_prefix = f"{parts[0]}.{parts[1]}.{parts[2]}"
-
     while True:
+        chat_id = wrtapi.CHAT_ID
+        if not chat_id:
+            await asyncio.sleep(60)
+            continue
+
+        lan_prefix = get_lan_subnet()
+        ignored = load_list(IGNORE_FILE)
+        seen = load_list(SEEN_FILE)
+        
         arp_entries = []
         try:
             with open("/proc/net/arp", "r") as f:
-                lines = f.readlines()
-                for line in lines[1:]: # skip header
+                header = f.readline()
+                for line in f:
                     parts = line.split()
                     if len(parts) >= 4:
-                        ip = parts[0]
-                        mac = parts[3]
+                        ip, mac = parts[0], parts[3].upper()
+                        # Ignore multicast, loopback, and broadcast
                         if ip.startswith(lan_prefix) and mac != "00:00:00:00:00:00":
-                            arp_entries.append((ip, mac))
-        except Exception as e:
-            pass # ARP cache not available
+                            if mac not in ignored:
+                                arp_entries.append((ip, mac))
+        except: pass
 
-        # Asynchronously ping all IPs
         tasks = [ping_ip(ip) for ip, mac in arp_entries]
         if tasks:
             results = await asyncio.gather(*tasks)
@@ -115,46 +140,62 @@ async def scan_loop():
             ping_status = {}
 
         for ip, mac in arp_entries:
-            result = ping_status.get(ip, "DOWN")
-            last = "NULL"
-            state_file = os.path.join(ARPS_DIR, ip)
+            current_state = ping_status.get(ip, "DOWN")
+            state_file = os.path.join(STATE_DIR, mac.replace(":", ""))
+            
+            last_state = "NULL"
             if os.path.exists(state_file):
-                with open(state_file, "r") as f:
-                    last = f.read().strip()
+                try:
+                    with open(state_file, "r") as f: last_state = f.read().strip()
+                except: pass
 
-            if last != result:
+            is_new = mac not in seen
+            
+            # Send notification if:
+            # 1. Device is physically new to the network
+            # 2. Device state changed from Online -> Offline or Offline -> Online
+            if is_new or (last_state != "NULL" and current_state != last_state):
                 name = get_hostname(ip)
                 vendor = get_vendor(mac, oui_db)
                 date_str = time.strftime("%d/%m/%Y %I:%M %p")
                 
-                if result == "UP":
+                if is_new:
+                    emoji = "✨"
+                    title = "New Device Detected"
+                elif current_state == "UP":
                     emoji = "🟢"
+                    title = "Device Online"
                 else:
                     emoji = "🔴"
-                    
-                msg = f"{emoji} *Device State Changed*\n\n"
+                    title = "Device Offline"
+
+                msg = f"{emoji} *{title}*\n\n"
                 msg += f"📱 *Device:* {name}\n"
                 msg += f"🏷 *Brand:* {vendor}\n"
                 msg += f"📅 *Date:* {date_str}\n"
                 msg += f"🌐 *IP:* {ip}\n"
                 msg += f"🔢 *MAC:* {mac}\n"
-                msg += f"📶 *State:* {result}"
+                msg += f"📶 *State:* {current_state}"
                 
-                if chat_id:
-                    wrtapi.send_message(chat_id, msg)
-                else:
-                    wrtapi.log_msg("hosts_scan", "Cannot send: CHAT_ID missing")
+                # Check for aliases/names mapping if we have it? (Omit for now)
+                
+                wrtapi.send_message(chat_id, msg)
+                
+                if is_new:
+                    save_seen(mac)
+                    seen.add(mac)
 
-            with open(state_file, "w") as f:
-                f.write(result)
+            # Update cache
+            try:
+                with open(state_file, "w") as f: f.write(current_state)
+            except: pass
 
         await asyncio.sleep(300)
 
 if __name__ == "__main__":
-    wrtapi.log_msg("hosts_scan", "Started Python Async ARP/Ping Scanner")
+    wrtapi.log_msg("hosts_scan", "Started Device Notification Service")
     try:
         asyncio.run(scan_loop())
-    except KeyboardInterrupt:
-        pass
+    except KeyboardInterrupt: pass
     except Exception as e:
         wrtapi.log_msg("hosts_scan", f"Crash: {e}")
