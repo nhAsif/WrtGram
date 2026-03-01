@@ -182,10 +182,7 @@ jobs:
 
       - name: Fix Post-job git warning for older git versions
         if: always()
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          rm -f .git/index
-          git reset --mixed HEAD
+        run: rm -rf .git
 
   pre-release:
     if: github.event_name != 'pull_request' && github.ref_name == 'main'
