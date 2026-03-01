@@ -1,13 +1,13 @@
 #!/bin/sh
 
-# Set process name for easier identification
+# Set process name for easier identification in ps/pgrep
 echo -n "telegram_bot" >/proc/$$/comm
 
-{
 # Source shared library for UCI config, TLS settings, and API helpers
+# This provides WRTGRAM_API, WRTGRAM_CHAT_ID, CURL_TLS, tg_send, log_msg
 . /usr/lib/wrtgram/common
 
-echo "starting"
+log_msg "telegram_bot: service starting"
 
 timeout=$(uci -q get wrtgram.global.timeout)
 timeout="${timeout:-60}"
@@ -17,26 +17,26 @@ path="/sbin"
 plugins="/usr/lib/wrtgram/plugins"
 actions="${plugins}/actions"
 
-# Robust ps command detection
+# Robust ps command detection for cleanup
 if ps w >/dev/null 2>&1; then
     ps_cmd="ps w"
 else
     ps_cmd="ps ax"
 fi
 
-# Detect timeout command existence
+# Detect timeout command existence for plugin execution safety
 if command -v timeout >/dev/null 2>&1; then
     timeout_cmd="timeout 30"
 else
     timeout_cmd=""
 fi
 
-# Ensure offset file exists and initialize local offset variable
+# Persistent offset storage to skip already processed messages
 VAR_FILE="/var/run/bot_vars"
 touch "${VAR_FILE}"
 offset=0
 [ -s "${VAR_FILE}" ] && . "${VAR_FILE}"
-# Ensure offset is numeric to prevent shell arithmetic errors
+# Ensure offset is numeric
 case "${offset}" in
     ''|*[!0-9]*) offset=0 ;;
 esac
@@ -50,89 +50,91 @@ Send [/start](/start) to get my commands list."
 starting=1
 start_time=$(date +%s)
 
+# Main Event Loop (Stay in foreground for procd management)
 while true; do
-    # Only increment offset if we have a non-zero base, otherwise let Telegram decide
+    # Only use offset if we have a valid previous one
     if [ "${offset}" -gt 0 ]; then
         query_offset=$((offset + 1))
     else
         query_offset=""
     fi
 
+    # Long-polling for updates
     updates=$(curl -s ${CURL_TLS} -X GET \
         "${WRTGRAM_API}/getUpdates?offset=${query_offset}&timeout=${timeout}")
     
     if [ $? -ne 0 ] || [ -z "$updates" ]; then
+        log_msg "telegram_bot: getUpdates failed or empty, retrying in 5s..."
         sleep 5
         continue
     fi
 
     status=$(jsonfilter -s "$updates" -e "$.ok")
     if [ "${status}" = "true" ]; then
+        # Process each update sequentially
         update_ids=$(jsonfilter -s "$updates" -e "$.result[*].update_id")
 
         for update_id in ${update_ids}; do
-            # Update and persist offset immediately so we don't process this again
+            # Update offset immediately to avoid reprocessing on crash/restart
             offset="${update_id}"
             echo "offset=${offset}" > "${VAR_FILE}"
 
-            # Extract message/query details
-            origin=$(jsonfilter -s "$updates" -e "$.result[@.update_id=${update_id}].message.chat.id")
-            origin_ans=$(jsonfilter -s "$updates" -e "$.result[@.update_id=${update_id}].callback_query.message.chat.id")
-            msg_date=$(jsonfilter -s "$updates" -e "$.result[@.update_id=${update_id}].message.date")
+            # Extract basic message info
+            msg_obj=$(jsonfilter -s "$updates" -e "$.result[@.update_id=${update_id}].message")
+            cb_obj=$(jsonfilter -s "$updates" -e "$.result[@.update_id=${update_id}].callback_query")
+            
+            # Determine origin chat ID and message date
+            if [ -n "$msg_obj" ]; then
+                origin=$(echo "$msg_obj" | jsonfilter -e "@.chat.id")
+                msg_date=$(echo "$msg_obj" | jsonfilter -e "@.date")
+                msg_id=$(echo "$msg_obj" | jsonfilter -e "@.message_id")
+                command_text=$(echo "$msg_obj" | jsonfilter -e "@.text")
+                is_a_cmd=$(echo "$msg_obj" | jsonfilter -e "@.entities[*].type")
+            elif [ -n "$cb_obj" ]; then
+                origin=$(echo "$cb_obj" | jsonfilter -e "@.message.chat.id")
+                msg_date=$(echo "$cb_obj" | jsonfilter -e "@.message.date")
+                query_ans=$(echo "$cb_obj" | jsonfilter -e "@.id")
+                msg_id_ans=$(echo "$cb_obj" | jsonfilter -e "@.message.message_id")
+                final_cmd=$(echo "$cb_obj" | jsonfilter -e "@.data")
+            else
+                continue
+            fi
 
-            # Skip old messages on startup
+            # Skip messages older than bot start time (on first poll only)
             if [ "${starting}" = "1" ] && [ "${msg_date:-0}" -lt "${start_time}" ]; then
                 continue
             fi
 
-            # Auth check: must match the configured chat ID
-            is_authorized=0
-            [ -n "${WRTGRAM_CHAT_ID}" ] && [ "${origin}" = "${WRTGRAM_CHAT_ID}" ] && is_authorized=1
-            [ -n "${WRTGRAM_CHAT_ID}" ] && [ "${origin_ans}" = "${WRTGRAM_CHAT_ID}" ] && is_authorized=1
-
-            if [ "${is_authorized}" -eq 0 ]; then
-                # Only log/reply if we have a valid origin to avoid spamming empty IDs
+            # Authorization Check
+            if [ -z "${WRTGRAM_CHAT_ID}" ] || [ "${origin}" != "${WRTGRAM_CHAT_ID}" ]; then
+                log_msg "Unauthorized access attempt by ID ${origin}"
                 if [ -n "${origin}" ]; then
-                    username=$(jsonfilter -s "$updates" -e "$.result[@.update_id=${update_id}].message.chat.username")
-                    command=$(jsonfilter -s "$updates" -e "$.result[@.update_id=${update_id}].message.text")
-                    
-                    log_msg "Unauthorized access attempt by ${username} with command: ${command}"
-                    
-                    if [ -n "${to_addr}" ]; then
-                        printf "From: %s\nTo: %s\nSubject: WrtGram Alert\n\nUnauthorized access attempt by %s\nCommand: %s" \
-                            "${from_addr}" "${to_addr}" "${username}" "${command}" | ssmtp "${to_addr}"
-                    fi
-
                     curl -s ${CURL_TLS} -X POST "${WRTGRAM_API}/sendMessage" \
                         -d "chat_id=${origin}" \
-                        -d "parse_mode=Markdown" \
                         --data-urlencode "text=This is a private bot."
                     curl -s ${CURL_TLS} -X POST "${WRTGRAM_API}/leaveChat" -d "chat_id=${origin}"
                 fi
                 continue
             fi
 
-            # --- Authorized Request Processing ---
-            
+            # Start "typing" indicator in background
             /sbin/typing >/dev/null 2>&1 &
             typing_pid=$!
 
-            msg_id=$(jsonfilter -s "$updates" -e "$.result[@.update_id=${update_id}].message.message_id")
-            command_text=$(jsonfilter -s "$updates" -e "$.result[@.update_id=${update_id}].message.text")
-            is_a_cmd=$(jsonfilter -s "$updates" -e "$.result[@.update_id=${update_id}].message.entities[*].type")
-            query_ans=$(jsonfilter -s "$updates" -e "$.result[@.update_id=${update_id}].callback_query.id")
-
+            # Handle Commands (e.g. /status)
             if echo "${is_a_cmd}" | grep -q "bot_command"; then
                 cmd=$(echo "${command_text}" | awk '{print $1}')
-                # Clean parameters: remove command part and strip shell metacharacters
-                parms=$(echo "${command_text}" | awk '{$1=""; sub(/^[ \t]+/, ""); printf "%s", $0}' | sed 's/[\"&;<>|\\]//g')
+                # Extract and sanitize parameters
+                prms=$(echo "${command_text}" | awk '{$1=""; printf "%s", $0}' | sed 's/^[ \t]*//')
+                parms=$(echo "${prms}" | sed 's/[\"&;<>|\\]//g')
 
                 if [ -f "${plugins}${cmd}" ]; then
                     if [ "${cmd}" = "/reboot" ] && [ "${starting}" = "1" ]; then
-                        # ignore old reboots
+                        : # Skip old reboot commands
                     else
                         cd "${plugins}"
-                        log_msg "Executing plugin: ${cmd} [${parms}]"
+                        log_msg "Call ${cmd} [${parms}]"
+                        # Run plugin and capture output
                         result=$(${timeout_cmd} "${plugins}${cmd}" ${parms})
                         /sbin/telegram_sender "${result}"
                         cd "${path}"
@@ -141,16 +143,16 @@ while true; do
                     tg_send "Command *${cmd}* not found!"
                 fi
 
+            # Handle Inline Keyboard Actions
             elif [ -n "${query_ans}" ]; then
-                msg_id_ans=$(jsonfilter -s "$updates" -e "$.result[@.update_id=${update_id}].callback_query.message.message_id")
-                final_cmd=$(jsonfilter -s "$updates" -e "$.result[@.update_id=${update_id}].callback_query.data")
                 fcmd=$(echo "${final_cmd}" | awk -F "|" '{printf $1}')
                 fprms=$(echo "${final_cmd}" | awk -F "|" '{printf $2}')
                 parameter=$(echo "${fprms}" | sed 's/[&;<>|\\]//g')
 
                 if [ -f "${actions}/${fcmd}" ]; then
                     cd "${actions}"
-                    log_msg "Executing action: ${fcmd}"
+                    log_msg "Call Action ${fcmd}"
+                    # Actions use pipe-delimited format: remove_flag|message
                     result=$(IFS="\^"; ${timeout_cmd} "./${fcmd}" ${parameter})
                     remove=$(echo "${result}" | awk -F "|" '{print $1}')
                     msg=$(echo "${result}" | awk -F "|" '{print $2}')
@@ -174,12 +176,11 @@ while true; do
                 tg_send "${command_not_found}"
             fi
             
-            # Cleanup typing indicator
+            # Stop typing indicator
             kill "${typing_pid}" 2>/dev/null
             pids=$(pgrep -f "/sbin/typing" || ${ps_cmd} | grep -v grep | grep typing | awk '{print $1}')
             [ -n "${pids}" ] && kill ${pids} 2>/dev/null
         done
     fi
     starting=0
-done &
-} | (logger -t "telegram_bot" -p daemon.info) &
+done
