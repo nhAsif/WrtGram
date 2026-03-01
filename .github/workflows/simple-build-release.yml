@@ -180,6 +180,13 @@ jobs:
           path: /builder/wrtgram*.ipk
           if-no-files-found: error
 
+      - name: Fix Post-job git warning for older git versions
+        if: always()
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          rm -f .git/index
+          git reset --mixed HEAD
+
   pre-release:
     if: github.event_name != 'pull_request' && github.ref_name == 'main'
     needs: [build-openwrt]
