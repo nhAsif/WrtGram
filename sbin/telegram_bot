@@ -90,6 +90,34 @@ while True:
                 cmd = parts[0] if parts else ""
                 parms = parts[1] if len(parts) > 1 else ""
                 
+                if is_cmd:
+                    alias_val = wrtapi.get_uci(f"wrtgram.alias.{cmd.lstrip('/')}")
+                    if alias_val:
+                        aparts = alias_val.split(maxsplit=1)
+                        if aparts:
+                            cmd = aparts[0]
+                            parms = (aparts[1] + " " + parms).strip() if len(aparts) > 1 else parms
+                            
+                state_file = "/tmp/wrtgram_state.json"
+                state = {}
+                if os.path.exists(state_file):
+                    try:
+                        with open(state_file, "r") as f: state = json.load(f)
+                    except: pass
+                
+                origin_state = state.get(origin)
+                if is_cmd and origin_state:
+                    del state[origin]
+                    origin_state = None
+                    try:
+                        with open(state_file, "w") as f: json.dump(state, f)
+                    except: pass
+                    
+                if not is_cmd and origin_state:
+                    cmd = origin_state.get("plugin")
+                    parms = command_text
+                    is_cmd = True
+                
             elif cb_obj:
                 origin = str(cb_obj.get("message", {}).get("chat", {}).get("id", ""))
                 msg_date = cb_obj.get("message", {}).get("date", 0)
@@ -131,11 +159,16 @@ while True:
                             else:
                                 p_args = [plugin_base]
                                 
-                            if parms_sanitized:
+                            if parms_sanitized and not origin_state:
                                 p_args.extend(parms_sanitized.split())
                                 
+                            env = os.environ.copy()
+                            if origin_state:
+                                env["WRTGRAM_CONVERSATION"] = "1"
+                                env["WRTGRAM_INPUT"] = command_text
+                                
                             try:
-                                output = subprocess.check_output(p_args, cwd=cwd_path, timeout=30, stderr=subprocess.STDOUT)
+                                output = subprocess.check_output(p_args, cwd=cwd_path, env=env, timeout=30, stderr=subprocess.STDOUT)
                                 result = output.decode('utf-8')
                             except subprocess.TimeoutExpired as e:
                                 result = (e.output.decode('utf-8') if e.output else "") + "\n(Command Timed Out)"

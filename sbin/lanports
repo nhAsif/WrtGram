@@ -1,58 +1,97 @@
-#!/bin/ash
+#!/usr/bin/env python3
+import sys, os, subprocess, time, re
+sys.path.append("/usr/lib/wrtgram")
+import wrtapi
 
-export PATH='/usr/bin:/usr/sbin:/bin:/sbin'
+OFFER_MAC_FILE = "/tmp/wrtgram_dhcp_offer_mac"
 
-. /usr/lib/wrtgram/common
+def get_switch_name():
+    try:
+        output = subprocess.check_output(["swconfig", "list"], stderr=subprocess.STDOUT).decode('utf-8')
+        parts = output.split()
+        if len(parts) >= 4:
+            return parts[3]
+    except Exception:
+        pass
+    return "switch0"
 
-switch=$(swconfig list | awk '{printf $4}')
-OFFER_MAC_FILE="/tmp/wrtgram_dhcp_offer_mac"
-rm -f "$OFFER_MAC_FILE"
+def get_ignored_macs():
+    ignored_file = wrtapi.get_uci("wrtgram.global.ignored_macaddrs_file", "/etc/wrtgram/macaddr.ignore")
+    macs = []
+    if os.path.exists(ignored_file):
+        try:
+            with open(ignored_file, "r") as f:
+                for line in f:
+                    macs.append(line.strip().upper())
+        except:
+            pass
+    return macs
 
-(logread -f | while read -r line; do
+def main():
+    wrtapi.log_msg("lanports", "Started Python Log Monitor")
+    switch = get_switch_name()
+    if os.path.exists(OFFER_MAC_FILE):
+        try: os.remove(OFFER_MAC_FILE)
+        except: pass
+        
+    chat_id = wrtapi.CHAT_ID
+    if not chat_id:
+        wrtapi.log_msg("lanports", "My Chat ID is empty. Cannot send messages.")
 
-    # ── LAN Switch Port Events ─────────────────────────────────────────────
-    if echo "${line}" | grep -q "${switch}: Port"; then
-        ports=$(echo "${line}" | grep -oE "Port ([0-9]+) is (up|down)")
-        time=$(date +"%I:%M:%S %p")
-        pnum=$(echo "${ports}" | cut -d ' ' -f 2)
-        state=$(echo "${ports}" | cut -d ' ' -f 4)
-        if [ "$state" = "up" ]; then
-            icon="🟢"
-        else
-            icon="🔴"
-        fi
-        /sbin/telebot "$(printf "%s *LAN Port Alert* %s\n\n*Port:* %s\n*Time:* %s\n*State:* %s" \
-            "$icon" "$icon" "$pnum" "$time" "$state")"
-    fi
+    # Patterns
+    re_switch_up = re.compile(rf"{switch}:\s*Port\s*(\d+)\s*is\s*up")
+    re_switch_down = re.compile(rf"{switch}:\s*Port\s*(\d+)\s*is\s*down")
+    re_dhcpoffer = re.compile(r"DHCPOFFER.*?(([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})")
+    re_dhcpack = re.compile(r"DHCPACK.*?(([0-9]{1,3}\.){3}[0-9]{1,3})\s+(([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})\s+(.*)")
 
-    # ── DHCP New Device Notification ──────────────────────────────────────
-    # Track DHCPOFFER by MAC address rather than a fragile line countdown,
-    # which eliminates the race condition on busy networks.
-    if echo "${line}" | grep -q "DHCPOFFER"; then
-        offer_mac=$(echo "${line}" | grep -oE "([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}" | head -1)
-        [ -n "$offer_mac" ] && echo "$offer_mac" >"$OFFER_MAC_FILE"
-    fi
+    proc = subprocess.Popen(["logread", "-f"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    
+    try:
+        for line in proc.stdout:
+            # LAN Switch Port Events
+            match_up = re_switch_up.search(line)
+            match_down = re_switch_down.search(line)
+            if match_up or match_down:
+                pnum = match_up.group(1) if match_up else match_down.group(1)
+                state = "up" if match_up else "down"
+                time_str = time.strftime("%I:%M:%S %p")
+                icon = "🟢" if state == "up" else "🔴"
+                msg = f"{icon} *LAN Port Alert* {icon}\n\n*Port:* {pnum}\n*Time:* {time_str}\n*State:* {state}"
+                if chat_id: wrtapi.send_message(chat_id, msg)
+                continue
 
-    if echo "${line}" | grep -q "DHCPACK" && [ -f "$OFFER_MAC_FILE" ]; then
-        dados=$(echo "${line}" | grep -oE \
-            "[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3} [0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2} .*")
-        if [ -z "${dados}" ]; then
-            dados=$(echo "${line}" | grep -oE \
-                "[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3} [0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}")
-        fi
-        if [ -n "${dados}" ]; then
-            time=$(date +"%I:%M:%S %p")
-            ip=$(echo "${dados}" | cut -d ' ' -f 1)
-            macaddr=$(echo "${dados}" | cut -d ' ' -f 2)
-            name=$(echo "${dados}" | cut -d ' ' -f 3 \
-                | awk '{gsub("*","\\*",$0); gsub("_","\\_",$0); printf $0}')
-            [ -z "${name}" ] && name="N/A"
-            rm -f "$OFFER_MAC_FILE"  # consume the tracked offer
-            if ! grep -q "$macaddr" "${WRTGRAM_IGNORED_MACS}" 2>/dev/null; then
-                /sbin/telebot "$(printf "🆕 *New Device Connected* 🆕\n\n*Hostname:* %s\n*Time:* %s\n*IP Address:* %s\n*MAC Address:* %s" \
-                    "$name" "$time" "$ip" "$macaddr")"
-            fi
-        fi
-    fi
+            # DHCP New Device Notification
+            if "DHCPOFFER" in line:
+                match_offer = re_dhcpoffer.search(line)
+                if match_offer:
+                    offer_mac = match_offer.group(1).upper()
+                    with open(OFFER_MAC_FILE, "w") as f:
+                        f.write(offer_mac)
+                continue
+                
+            if "DHCPACK" in line and os.path.exists(OFFER_MAC_FILE):
+                match_ack = re_dhcpack.search(line)
+                if match_ack:
+                    ip = match_ack.group(1)
+                    macaddr = match_ack.group(3).upper()
+                    name = match_ack.group(5).strip()
+                    name = name.replace("*", "\\*").replace("_", "\\_")
+                    if not name: name = "N/A"
+                    
+                    try: os.remove(OFFER_MAC_FILE)
+                    except: pass
+                    
+                    ignored = get_ignored_macs()
+                    if macaddr not in ignored:
+                        time_str = time.strftime("%I:%M:%S %p")
+                        msg = f"🆕 *New Device Connected* 🆕\n\n*Hostname:* {name}\n*Time:* {time_str}\n*IP Address:* {ip}\n*MAC Address:* {macaddr}"
+                        if chat_id: wrtapi.send_message(chat_id, msg)
+                        
+    except KeyboardInterrupt:
+        proc.terminate()
+    except Exception as e:
+        wrtapi.log_msg("lanports", f"Crash: {e}")
+        proc.terminate()
 
-done) &
+if __name__ == "__main__":
+    main()

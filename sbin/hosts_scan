@@ -1,48 +1,160 @@
-#!/bin/sh
+#!/usr/bin/env python3
+import sys, os, asyncio, subprocess, time, json
+sys.path.append("/usr/lib/wrtgram")
+import wrtapi
 
-. /usr/lib/wrtgram/common
+ARPS_DIR = "/usr/lib/wrtgram/arps"
+OUI_DB_PATH = "/usr/lib/wrtgram/oui.json"
 
-mkdir -p /usr/lib/wrtgram/arps 2>/dev/null
+os.makedirs(ARPS_DIR, exist_ok=True)
 
-# Dynamically determine LAN subnet prefix from UCI instead of hardcoding.
-LAN_IP=$(uci -q get network.lan.ipaddr)
-if [ -z "$LAN_IP" ]; then
-    logger -t "wrtgram[$$]" -p daemon.warn "hosts_scan: could not read network.lan.ipaddr, defaulting to 192.168.1"
-    LAN_PREFIX="192.168.1"
-else
-    LAN_PREFIX=$(echo "$LAN_IP" | cut -d. -f1-3)
-fi
+def load_oui():
+    if os.path.exists(OUI_DB_PATH):
+        try:
+            with open(OUI_DB_PATH, "r") as f:
+                return json.load(f)
+        except:
+            pass
+    return {}
 
-(while true; do
+def get_vendor(mac, oui_db):
+    prefix = mac.upper()[:8].replace("-", ":")
+    
+    if prefix in oui_db:
+        return oui_db[prefix]
+        
+    fallback = {
+        "00:1C:B3": "Apple", "00:1E:52": "Apple", "00:23:12": "Apple",
+        "00:23:32": "Apple", "00:23:DF": "Apple", "00:24:36": "Apple",
+        "F8:FF:C2": "Apple", "F0:9F:C2": "Apple", "D4:90:9C": "Apple",
+        "FC:E9:98": "Apple", "00:14:22": "Dell",  "00:00:0C": "Cisco",
+        "00:01:42": "Cisco", "00:01:43": "Cisco", "00:01:63": "Cisco",
+        "00:01:64": "Cisco", "00:01:96": "Cisco", "00:01:97": "Cisco",
+        "00:01:C7": "Cisco", "00:01:C9": "Cisco", "00:02:16": "Cisco",
+        "04:EA:56": "TP-Link", "00:0A:EB": "TP-Link", "00:1D:0F": "TP-Link",
+        "00:23:CD": "TP-Link", "00:25:86": "TP-Link", "00:21:29": "Cisco",
+        "00:08:22": "Inscape Data", "00:11:32": "Synology",
+        "00:1A:11": "Google", "3C:5A:B4": "Google", "54:60:09": "Google",
+        "F4:F5:D8": "Google", "00:1A:A6": "Asus", "10:BF:48": "Asus",
+        "14:DD:A9": "Asus", "1C:87:2C": "Asus", "2C:4D:54": "Asus",
+        "90:E6:BA": "Asus", "AC:9E:17": "Asus", "BC:EE:7B": "Asus",
+        "CC:52:AF": "Samsung", "D0:22:BE": "Samsung", "D4:88:90": "Samsung",
+        "E4:B0:21": "Samsung", "F4:09:D8": "Samsung", "F8:04:2E": "Samsung",
+        "00:1E:10": "Huawei", "00:25:68": "Huawei", "00:25:9E": "Huawei",
+        "14:B9:68": "Huawei", "20:08:ED": "Huawei", "34:6B:D3": "Huawei",
+        "00:0B:82": "Grandstream",
+    }
+    return oui_db.get(prefix, fallback.get(prefix, "Unknown Brand"))
 
-    while read -r line; do
-        IP=$(echo "$line" | awk '{print $1}')
-        MAC=$(echo "$line" | awk '{print $4}')
-        LAST="NULL"
+async def ping_ip(ip):
+    proc = await asyncio.create_subprocess_exec(
+        "ping", ip, "-c", "1", "-W", "1", "-q",
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL
+    )
+    await proc.wait()
+    return ip, "UP" if proc.returncode == 0 else "DOWN"
 
-        ping "$IP" -w 1 -q >/dev/null 2>&1
-        if [ $? -eq 0 ]; then
-            RESULT="UP"
-        else
-            RESULT="DOWN"
-        fi
+def get_hostname(ip):
+    try:
+        if os.path.exists("/tmp/dhcp.leases"):
+            with open("/tmp/dhcp.leases", "r") as f:
+                for line in f:
+                    parts = line.strip().split()
+                    if len(parts) >= 4 and parts[2] == ip:
+                        if parts[3] != "*": return parts[3]
+    except Exception:
+        pass
+    
+    try:
+        hosts_files = [f for f in os.listdir("/tmp/hosts") if f.startswith("dhcp.cfg")]
+        for hf in hosts_files:
+            with open(os.path.join("/tmp/hosts", hf), "r") as f:
+                for line in f:
+                    parts = line.strip().split()
+                    if len(parts) >= 2 and parts[0] == ip:
+                        return parts[1]
+    except Exception:
+        pass
+    return "Unknown"
 
-        if [ -e "/usr/lib/wrtgram/arps/${IP}" ]; then
-            LAST=$(cat "/usr/lib/wrtgram/arps/${IP}")
-        fi
+async def scan_loop():
+    oui_db = load_oui()
+    chat_id = wrtapi.CHAT_ID
+    if not chat_id:
+        wrtapi.log_msg("hosts_scan", "My Chat ID is empty. Cannot send messages.")
+        
+    lan_ip = wrtapi.get_uci("network.lan.ipaddr")
+    lan_prefix = "192.168.1"
+    if lan_ip:
+        parts = lan_ip.split('.')
+        if len(parts) == 4:
+            lan_prefix = f"{parts[0]}.{parts[1]}.{parts[2]}"
 
-        if [ "${LAST}" != "${RESULT}" ]; then
-            name=$(grep " ${IP} " /tmp/dhcp.leases 2>/dev/null | awk '{print $4}')
-            [ -z "${name}" ] && name=$(grep "^${IP}" /tmp/hosts/dhcp.cfg01411c 2>/dev/null | awk '{print $2}')
-            date=$(date "+%d/%m/%Y %I:%M %p")
-            /sbin/telebot "$(printf "📱 *Device:* %s\n📅 *Date:* %s\n🌐 *IP:* %s\n🔢 *MAC:* %s\n📶 *State:* %s" \
-                "${name:-Unknown}" "$date" "$IP" "$MAC" "$RESULT")"
-        fi
+    while True:
+        arp_entries = []
+        try:
+            with open("/proc/net/arp", "r") as f:
+                lines = f.readlines()
+                for line in lines[1:]: # skip header
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        ip = parts[0]
+                        mac = parts[3]
+                        if ip.startswith(lan_prefix) and mac != "00:00:00:00:00:00":
+                            arp_entries.append((ip, mac))
+        except Exception as e:
+            pass # ARP cache not available
 
-        echo -n "${RESULT}" >"/usr/lib/wrtgram/arps/${IP}"
-    done <<EOF
-$(grep "${LAN_PREFIX}" /proc/net/arp)
-EOF
+        # Asynchronously ping all IPs
+        tasks = [ping_ip(ip) for ip, mac in arp_entries]
+        if tasks:
+            results = await asyncio.gather(*tasks)
+            ping_status = dict(results)
+        else:
+            ping_status = {}
 
-    sleep 300
-done) &
+        for ip, mac in arp_entries:
+            result = ping_status.get(ip, "DOWN")
+            last = "NULL"
+            state_file = os.path.join(ARPS_DIR, ip)
+            if os.path.exists(state_file):
+                with open(state_file, "r") as f:
+                    last = f.read().strip()
+
+            if last != result:
+                name = get_hostname(ip)
+                vendor = get_vendor(mac, oui_db)
+                date_str = time.strftime("%d/%m/%Y %I:%M %p")
+                
+                if result == "UP":
+                    emoji = "🟢"
+                else:
+                    emoji = "🔴"
+                    
+                msg = f"{emoji} *Device State Changed*\n\n"
+                msg += f"📱 *Device:* {name}\n"
+                msg += f"🏷 *Brand:* {vendor}\n"
+                msg += f"📅 *Date:* {date_str}\n"
+                msg += f"🌐 *IP:* {ip}\n"
+                msg += f"🔢 *MAC:* {mac}\n"
+                msg += f"📶 *State:* {result}"
+                
+                if chat_id:
+                    wrtapi.send_message(chat_id, msg)
+                else:
+                    wrtapi.log_msg("hosts_scan", "Cannot send: CHAT_ID missing")
+
+            with open(state_file, "w") as f:
+                f.write(result)
+
+        await asyncio.sleep(300)
+
+if __name__ == "__main__":
+    wrtapi.log_msg("hosts_scan", "Started Python Async ARP/Ping Scanner")
+    try:
+        asyncio.run(scan_loop())
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:
+        wrtapi.log_msg("hosts_scan", f"Crash: {e}")
