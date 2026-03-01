@@ -13,7 +13,7 @@ start_service () {
 
     procd_open_instance
     # Stay in foreground so procd can manage the process and capture output
-    procd_set_param command /bin/sh "$PROG"
+    procd_set_param command /usr/bin/env python3 "$PROG"
     procd_set_param file /etc/config/wrtgram
     procd_set_param respawn ${respawn_threshold:-3600} ${respawn_timeout:-5} ${respawn_retry:-5}
     procd_set_param stdout 1

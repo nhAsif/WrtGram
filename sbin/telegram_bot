@@ -20,7 +20,8 @@ KEY = get_uci("wrtgram.global.key")
 WRTGRAM_API = f"{URL}{KEY}" if URL and KEY else ""
 CHAT_ID = get_uci("wrtgram.global.my_chat_id")
 TLS_INSECURE = get_uci("wrtgram.global.tls_insecure") == "1"
-TIMEOUT = int(get_uci("wrtgram.global.timeout", "60"))
+t_str = get_uci("wrtgram.global.timeout", "60")
+TIMEOUT = int(t_str) if t_str.isdigit() else 60
 
 var_file = "/var/run/bot_vars"
 
