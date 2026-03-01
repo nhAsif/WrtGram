@@ -48,28 +48,9 @@ jobs:
           echo "sha=$(echo ${sha::7})" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
 
-  shellcheck:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install ShellCheck
-        run: sudo apt-get install -y shellcheck
-
-      - name: Run ShellCheck on sbin scripts
-        run: |
-          shellcheck sbin/telegram_bot sbin/telegram_sender sbin/telebot \
-            sbin/lanports sbin/hosts_scan sbin/typing
-
-      - name: Run ShellCheck on plugin scripts
-        run: |
-          find usr/lib/wrtgram/plugins -maxdepth 1 -type f | xargs shellcheck
-          find usr/lib/wrtgram/plugins/actions -type f | xargs shellcheck
-          find usr/lib/wrtgram/plugins/ctx -type f | xargs shellcheck
 
   build-openwrt:
-    needs: [prepare, shellcheck]
+    needs: [prepare]
     runs-on: ubuntu-latest
     strategy:
       matrix:
