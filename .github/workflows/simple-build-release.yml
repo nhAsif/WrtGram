@@ -33,8 +33,10 @@ jobs:
         run: |
           # Extract version from Makefile (or use defaults)
           if [ -f "Makefile" ]; then
-            echo "version=$(cat Makefile | grep "PKG_VERSION" | head -1 | sed 's/.*:= *//' | sed 's/ *$//')" >> $GITHUB_OUTPUT
-            echo "release=$(cat Makefile | grep "PKG_RELEASE" | head -1 | sed 's/.*:= *//' | sed 's/ *$//')" >> $GITHUB_OUTPUT
+            VERSION=$(grep "PKG_VERSION" Makefile | head -1 | sed 's/.*:= *//' | tr -d '\r\n ' )
+            RELEASE=$(grep "PKG_RELEASE" Makefile | head -1 | sed 's/.*:= *//' | tr -d '\r\n ' )
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "release=${RELEASE}" >> $GITHUB_OUTPUT
           else
             echo "version=1.0.0" >> $GITHUB_OUTPUT
             echo "release=1" >> $GITHUB_OUTPUT
