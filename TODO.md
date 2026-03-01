@@ -19,12 +19,12 @@ This document tracks the progress of migrating WrtGram from shell scripts to Pyt
   - Convert `sbin/lanports` to Python.
   - Directly tail system logs (`syslog`), maintaining better state to detect DHCP lease assignments and Switch Port state changes instantly.
 
-## ⏳ Phase 3: Upgrading Core Commands (Python Ports)
+## ✅ Phase 3: Upgrading Core Commands (Python Ports) (COMPLETED)
 - [x] **`/dashboard` & `/status`**: 
   - Rewrite in Python to use direct `ubus` calls.
   - Add unicode progress bars for memory/CPU (e.g., `[██████░░░░] 60%`).
   - Read active bandwidth consumption metrics.
-- [ ] **`/fw_list` & `/start`**: 
+- [x] **`/fw_list` & `/start`**: 
   - Rewrite the inline keyboard context generator (`usr/lib/wrtgram/plugins/ctx`).
   - Introduce an interactive "Pagination" system for handling 50+ list items across multiple menu pages.
 

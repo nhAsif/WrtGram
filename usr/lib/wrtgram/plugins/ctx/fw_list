@@ -1,28 +1,17 @@
-#!/bin/sh
+#!/usr/bin/env python3
+import sys, os
 
-. /usr/lib/wrtgram/common
+sys.path.append("/usr/lib/wrtgram")
+sys.path.append("/usr/lib/wrtgram/plugins/ctx")
 
-command="$1"
-text="$2"
+import wrtapi
+import helper
 
-# Extract firewall rules and format for inline keyboard
-firewall=$(uci -q show firewall | grep "@rule" | grep name | grep -oE "\[[[:digit:]]+\].name='([[:graph:]]|[[:blank:]])+'" | awk -F ".name=" '{
-    gsub(/[\047]|\[|\]/,"",$1);
-    gsub(/[\047]/,"",$2);
-    printf "[ {\"callback_data\": \"##CMD##|" $1 "\^" $2 "\" ,\"text\" : \"" $2;
-    cmd = "[ \"$(uci -q get firewall.@rule[" $1 "].enabled)\" = \"0\" ] && echo -en \" (Disabled)\" || echo -en \" (Enabled)\"";
-    system(cmd);
-    print "\"} ],";
-}')
-
-# POSIX-compatible string manipulation (replaces bash-specific slicing/substitution)
-rules=$(echo "$firewall" | sed 's/,$//')
-rls=$(echo "$rules" | sed "s/##CMD##/$command/g")
-keyboard="{\"inline_keyboard\": [$rls] }"
-
-# Send the message with the inline keyboard
-tg_api_call "sendMessage" \
-    -d "chat_id=${WRTGRAM_CHAT_ID}" \
-    -d "parse_mode=Markdown" \
-    -d "reply_markup=${keyboard}" \
-    --data-urlencode "text=${text}"
+if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        sys.exit(0)
+        
+    command = sys.argv[1]
+    prompt = sys.argv[2]
+    
+    helper.send_ctx_list(wrtapi.CHAT_ID, "firewall_rule", command, prompt)

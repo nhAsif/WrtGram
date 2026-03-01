@@ -51,5 +51,50 @@ def tg_api_call(endpoint, form_data=None, data_urlencode=None, method="POST", at
             time.sleep(timeout)
     return None
 
-def send_message(chat_id, text, parse_mode="Markdown"):
-    return tg_api_call("sendMessage", form_data={"chat_id": chat_id, "parse_mode": parse_mode}, data_urlencode={"text": text})
+def send_message(chat_id, text, parse_mode="Markdown", reply_markup=None):
+    form_data = {"chat_id": chat_id, "parse_mode": parse_mode}
+    if reply_markup:
+        form_data["reply_markup"] = json.dumps(reply_markup) if isinstance(reply_markup, dict) else reply_markup
+    return tg_api_call("sendMessage", form_data=form_data, data_urlencode={"text": text})
+
+def make_keyboard(buttons, row_width=1):
+    """
+    buttons: list of dicts like {"text": "...", "callback_data": "..."}
+    or list of lists for custom structure.
+    """
+    if buttons and isinstance(buttons[0], list):
+        return {"inline_keyboard": buttons}
+        
+    keyboard = []
+    for i in range(0, len(buttons), row_width):
+        keyboard.append(buttons[i : i + row_width])
+    return {"inline_keyboard": keyboard}
+
+def paginate_buttons(items, page, page_size, callback_pattern):
+    """
+    items: list of buttons
+    callback_pattern: string with {page} placeholder for navigation buttons
+    """
+    total_pages = (len(items) + page_size - 1) // page_size
+    if total_pages <= 1:
+        return items
+        
+    if page < 1: page = 1
+    if page > total_pages: page = total_pages
+    
+    start = (page - 1) * page_size
+    end = start + page_size
+    
+    page_items = items[start:end]
+    
+    nav_row = []
+    if page > 1:
+        nav_row.append({"text": "⬅️ Prev", "callback_data": callback_pattern.format(page=page-1)})
+    
+    nav_row.append({"text": f"{page}/{total_pages}", "callback_data": "ignore|"})
+    
+    if page < total_pages:
+        nav_row.append({"text": "Next ➡️", "callback_data": callback_pattern.format(page=page+1)})
+        
+    page_items.append(nav_row)
+    return page_items

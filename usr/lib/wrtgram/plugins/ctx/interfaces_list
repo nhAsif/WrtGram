@@ -1,19 +1,17 @@
-#!/bin/sh
+#!/usr/bin/env python3
+import sys, os
 
-. /usr/lib/wrtgram/common
+sys.path.append("/usr/lib/wrtgram")
+sys.path.append("/usr/lib/wrtgram/plugins/ctx")
 
-command="$1"
-text="$2"
+import wrtapi
+import helper
 
-INTERFACES=$(ubus list network.interface.* | awk -F"." '{printf " [ {\"callback_data\": \"##CMD##|"$3"\^\" ,\"text\" : \""$3"\"} ],"}')
-
-# POSIX-compatible string manipulation
-rules=$(echo "$INTERFACES" | sed 's/,$//')
-rls=$(echo "$rules" | sed "s/##CMD##/$command/g")
-keyboard="{\"inline_keyboard\": [$rls] }"
-
-tg_api_call "sendMessage" \
-    -d "chat_id=${WRTGRAM_CHAT_ID}" \
-    -d "parse_mode=Markdown" \
-    -d "reply_markup=${keyboard}" \
-    --data-urlencode "text=${text}"
+if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        sys.exit(0)
+        
+    command = sys.argv[1]
+    prompt = sys.argv[2]
+    
+    helper.send_ctx_list(wrtapi.CHAT_ID, "interface", command, prompt)

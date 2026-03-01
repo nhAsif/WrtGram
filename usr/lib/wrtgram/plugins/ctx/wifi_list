@@ -1,26 +1,17 @@
-#!/bin/sh
+#!/usr/bin/env python3
+import sys, os
 
-. /usr/lib/wrtgram/common
+sys.path.append("/usr/lib/wrtgram")
+sys.path.append("/usr/lib/wrtgram/plugins/ctx")
 
-command="$1"
-text="$2"
+import wrtapi
+import helper
 
-# Extract wireless radios and format for inline keyboard
-wireless=$(uci -q show wireless | grep "default_radio" | grep ssid | grep -oE "[[:digit:]]+.ssid='([[:graph:]]|[[:blank:]])+'" | awk -F ".ssid=" '{
-    gsub(/[\047]|\[|\]/,"",$1);
-    gsub(/[\047]/,"",$2);
-    printf "[ {\"callback_data\": \"##CMD##|" $1 "\^" $2 "\" ,\"text\" : \"" $2;
-    cmd = "[ \"$(uci -q get wireless.radio" $1 ".__toggle)\" = \"Disable\" ] && echo -en \" (Disabled)\" || echo -en \" (Enabled)\"";
-    system(cmd);
-    print "\"} ],";
-}')
-
-# POSIX-compatible string manipulation
-rules=$(echo "$wireless" | sed 's/,$//')
-rls=$(echo "$rules" | sed "s/##CMD##/$command/g")
-keyboard="{\"inline_keyboard\": [$rls] }"
-
-tg_api_call "sendMessage" \
-    -d "chat_id=${WRTGRAM_CHAT_ID}" \
-    -d "reply_markup=${keyboard}" \
-    -d "text=${text}"
+if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        sys.exit(0)
+        
+    command = sys.argv[1]
+    prompt = sys.argv[2]
+    
+    helper.send_ctx_list(wrtapi.CHAT_ID, "wifi", command, prompt)
