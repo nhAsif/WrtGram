@@ -24,7 +24,7 @@ def log_msg(name, msg):
 def tg_api_call(endpoint, form_data=None, data_urlencode=None, method="POST", attempts=3, timeout=2):
     if not WRTGRAM_API: return None
     
-    cmd = ["curl", "-s"]
+    cmd = ["curl", "-s", "--max-time", "15"]
     if TLS_INSECURE:
         cmd.append("-k")
     else:
@@ -34,7 +34,7 @@ def tg_api_call(endpoint, form_data=None, data_urlencode=None, method="POST", at
     
     if form_data:
         for k, v in form_data.items():
-            cmd.extend(["-d", f"{str(k)}={str(v)}"])
+            cmd.extend(["--data-urlencode", f"{str(k)}={str(v)}"])
             
     if data_urlencode:
         for k, v in data_urlencode.items():
