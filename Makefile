@@ -72,8 +72,9 @@ define Package/wrtgram/install
 				./usr/lib/wrtgram/plugins/actions/fw_enable \
 				./usr/lib/wrtgram/plugins/actions/interface_down \
         		./usr/lib/wrtgram/plugins/actions/interface_restart \
-        		./usr/lib/wrtgram/plugins/actions/interface_up \
-				./usr/lib/wrtgram/plugins/actions/dashboard \
+				./usr/lib/wrtgram/plugins/actions/interface_up \
+				./usr/lib/wrtgram/plugins/actions/dashboard.py \
+				./usr/lib/wrtgram/plugins/actions/ctx_relist.py \
 		$(1)/usr/lib/wrtgram/plugins/actions
 	
 	$(INSTALL_DIR) $(1)/usr/lib/wrtgram/plugins/ctx
@@ -83,6 +84,7 @@ define Package/wrtgram/install
 				./usr/lib/wrtgram/plugins/ctx/reboot \
 				./usr/lib/wrtgram/plugins/ctx/fw_list \
 				./usr/lib/wrtgram/plugins/ctx/interfaces_list \
+				./usr/lib/wrtgram/plugins/ctx/helper.py \
 		$(1)/usr/lib/wrtgram/plugins/ctx
 	
 	# Help directory removed (text merged into plugins)
