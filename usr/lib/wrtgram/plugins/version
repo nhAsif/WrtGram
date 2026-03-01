@@ -1,5 +1,7 @@
 #!/bin/sh
 
+. /usr/lib/wrtgram/common
+
 INSTALLED=$(cat /usr/share/wrtgram/version 2>/dev/null || echo "unknown")
 
 echo "🤖 *WrtGram Version*"
@@ -8,7 +10,7 @@ echo "📦 *Installed:* v${INSTALLED}"
 echo ""
 
 # Check GitHub for the latest release tag
-LATEST=$(curl -s --capath /etc/ssl/certs \
+LATEST=$(curl -s ${CURL_TLS} \
     "https://api.github.com/repos/nhAsif/WrtGram/releases/latest" 2>/dev/null \
     | jsonfilter -e "@.tag_name" 2>/dev/null)
 

@@ -1,18 +1,20 @@
 #!/bin/sh
 
-export PATH="/usr/bin:/usr/sbin:/bin:/sbin"
-
-url=$(uci -q get wrtgram.global.url)
-key=$(uci -q get wrtgram.global.key)
-api="$url$key"
-my_chat_id=$(uci -q get wrtgram.global.my_chat_id)
+. /usr/lib/wrtgram/common
 
 command="$1"
 text="$2"
 
-SERVICES=$(ls -1 /etc/init.d/ | awk '{print " [ {\"callback_data\": \"##CMD##|"$0"^\" ,\"text\" : \""$0"\"} ],"}')
-rules=${SERVICES:0:$((${#SERVICES}-1))}
-rls=${rules//##CMD##/$command}
-keyboard='{"inline_keyboard": ['$rls'] }'
+# List init scripts and format for inline keyboard
+SERVICES=$(ls -1 /etc/init.d/ | awk '{printf " [ {\"callback_data\": \"##CMD##|"$0"\^\" ,\"text\" : \""$0"\"} ],"}')
 
-curl -k -s -X POST -H "Charset: UTF-8"  $api/sendMessage -d chat_id=$my_chat_id -d "reply_markup=${keyboard}" -d "text=${text}"
+# POSIX-compatible string manipulation
+rules=$(echo "$SERVICES" | sed 's/,$//')
+rls=$(echo "$rules" | sed "s/##CMD##/$command/g")
+keyboard="{\"inline_keyboard\": [$rls] }"
+
+tg_api_call "sendMessage" \
+    -d "chat_id=${WRTGRAM_CHAT_ID}" \
+    -d "parse_mode=Markdown" \
+    -d "reply_markup=${keyboard}" \
+    --data-urlencode "text=${text}"

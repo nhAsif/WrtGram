@@ -94,7 +94,7 @@ while true; do
                         cd "${plugins}"
                         (echo "Call ${cmd} [${parms}]" | logger -t "telegram_bot[$$]" -p daemon.info) &
                         # Execute plugin with a 30-second timeout to prevent hangs
-                        result=$(timeout 30 "./${cmd}" ${parms})
+                        result=$(timeout 30 ".${cmd}" ${parms})
                         /sbin/telegram_sender "$result"
                         cd "${path}"
                     else

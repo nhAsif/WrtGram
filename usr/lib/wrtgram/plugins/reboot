@@ -1,5 +1,5 @@
 #!/bin/sh
 
-./ctx/reboot& >>/dev/null
+./ctx/reboot >/dev/null 2>&1 &
 
 echo "Rebooting in 15 seconds...."
