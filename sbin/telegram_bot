@@ -16,11 +16,18 @@ path="/sbin"
 plugins="/usr/lib/wrtgram/plugins"
 actions="${plugins}/actions"
 
-# POSIX-compatible ps command detection
-if [ "$(readlink -fn /bin/ps)" = "/bin/busybox" ]; then
+# More portable ps command detection
+if [ -L /bin/ps ] && [ "$(readlink /bin/ps)" = "busybox" ]; then
     ps_cmd="ps w"
 else
     ps_cmd="ps ax"
+fi
+
+# Detect timeout command existence
+if command -v timeout >/dev/null 2>&1; then
+    timeout_cmd="timeout 30"
+else
+    timeout_cmd=""
 fi
 
 touch /var/run/bot_vars
@@ -35,8 +42,11 @@ starting=1
 start_time=$(date +%s)
 
 while true; do
-    . /var/run/bot_vars
+    # Load offset from previous iteration, ensuring it is numeric
+    [ -f /var/run/bot_vars ] && . /var/run/bot_vars
+    offset="${offset:-0}"
     offset=$((offset + 1))
+
     status="false"
     updates=$(curl -s ${CURL_TLS} -X GET \
         "${WRTGRAM_API}/getUpdates?offset=${offset}&timeout=${timeout}")
@@ -49,6 +59,7 @@ while true; do
         update_ids=$(jsonfilter -s "$updates" -e "$.result[*].update_id")
 
         for update_id in $update_ids; do
+            # Persist offset immediately
             echo "offset=${update_id}" >/var/run/bot_vars
             origin=$(jsonfilter -s "$updates" -e "$.result[@.update_id=${update_id}].message.chat.id")
             msg_date=$(jsonfilter -s "$updates" -e "$.result[@.update_id=${update_id}].message.date")
@@ -66,8 +77,9 @@ while true; do
             query_ans=$(jsonfilter -s "$updates" -e "$.result[@.update_id=${update_id}].callback_query.id")
             origin_ans=$(jsonfilter -s "$updates" -e "$.result[@.update_id=${update_id}].callback_query.message.chat.id")
 
+            # Unauthorized user check (must match chat ID)
             if [ "$origin" != "$WRTGRAM_CHAT_ID" ] && [ "$origin_ans" != "$WRTGRAM_CHAT_ID" ]; then
-                # Unauthorized user — alert via email and reject
+                # unauthorized — alert and reject
                 printf "From: %s\nTo: %s\nSubject: TelegramBOT\n\nSomeone with username %s (%s %s) is trying to use your bot, sending the command: %s\n" \
                     "${from_addr}" "${to_addr}" "${username}" "${name}" "${lastname}" "${command}" \
                     | ssmtp "${to_addr}"
@@ -79,24 +91,27 @@ while true; do
                 curl -s ${CURL_TLS} -X POST "${WRTGRAM_API}/leaveChat" \
                     -d "chat_id=${origin}"
             else
+                # Show typing indicator while processing
                 /sbin/typing >/tmp/typing.log &
+                typing_pid=$!
 
                 if echo "$is_a_cmd" | grep -q "bot_command"; then
                     cmd=$(echo "$command" | awk '{print $1}')
-                    prms=$(echo "$command" | awk '{$1=""; sub(/^[ \t]+/, ""); print }')
-                    # Strip potentially dangerous shell metacharacters from parameters
+                    # Extract parameters and sanitize (remove shell metacharacters)
+                    prms=$(echo "$command" | awk '{$1=""; printf "%s", $0}')
                     parms=$(echo "$prms" | sed 's/[\"&;<>|\\]//g')
 
                     if [ -f "${plugins}${cmd}" ]; then
                         if [ "$cmd" = "/reboot" ] && [ "$starting" = "1" ]; then
-                            continue
+                            # skip old reboots
+                        else
+                            cd "${plugins}"
+                            log_msg "Call ${cmd} [${parms}]"
+                            # Execute plugin (use timeout if available)
+                            result=$(${timeout_cmd} "${plugins}${cmd}" ${parms})
+                            /sbin/telegram_sender "$result"
+                            cd "${path}"
                         fi
-                        cd "${plugins}"
-                        (echo "Call ${cmd} [${parms}]" | logger -t "telegram_bot[$$]" -p daemon.info) &
-                        # Execute plugin with a 30-second timeout to prevent hangs
-                        result=$(timeout 30 ".${cmd}" ${parms})
-                        /sbin/telegram_sender "$result"
-                        cd "${path}"
                     else
                         curl -s ${CURL_TLS} -X POST "${WRTGRAM_API}/sendMessage" \
                             -d "chat_id=${origin}" \
@@ -113,8 +128,8 @@ while true; do
 
                     if [ -f "${actions}/${fcmd}" ]; then
                         cd "${actions}"
-                        (echo "Call ${fcmd}" | logger -t "telegram_bot[$$]" -p daemon.info) &
-                        result=$(IFS="\^"; timeout 30 "./${fcmd}" ${parameter})
+                        log_msg "Call ${fcmd}"
+                        result=$(IFS="\^"; ${timeout_cmd} "./${fcmd}" ${parameter})
                         remove=$(echo "$result" | awk -F "|" '{print $1}')
                         msg=$(echo "$result" | awk -F "|" '{print $2}')
                         curl -s ${CURL_TLS} -X POST "${WRTGRAM_API}/answerCallbackQuery" \
@@ -141,7 +156,12 @@ while true; do
                         -d "parse_mode=Markdown" \
                         --data-urlencode "text=${command_not_found}"
                 fi
-                kill $(${ps_cmd} | grep -v grep | grep typing | awk '{print $1}') 2>/dev/null
+                
+                # Stop typing indicator
+                kill $typing_pid 2>/dev/null
+                # Cleanup if PID file exists or via name as fallback
+                pids=$(pgrep -f "/sbin/typing" || ${ps_cmd} | grep -v grep | grep typing | awk '{print $1}')
+                [ -n "$pids" ] && kill $pids 2>/dev/null
             fi
         done
     fi

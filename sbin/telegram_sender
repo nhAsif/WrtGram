@@ -1,63 +1,57 @@
-#!/bin/ash
+#!/bin/sh
 
 . /usr/lib/wrtgram/common
 
-items=$1
+items="$1"
 
-# POSIX-compliant log function (replaces bash-specific 'function log()' syntax)
-log() {
-    TEXT="$*"
-    ok=$(jsonfilter -s "${TEXT}" -e "$.ok")
-    message_id=$(jsonfilter -s "${TEXT}" -e "$.result.message_id")
-    from=$(jsonfilter -s "${TEXT}" -e "$.result.from")
-    chat=$(jsonfilter -s "${TEXT}" -e "$.result.chat")
-    date=$(jsonfilter -s "${TEXT}" -e "$.result.date")
-    msg=$(jsonfilter -s "${TEXT}" -e "$.result.text")
-    entities=$(jsonfilter -s "${TEXT}" -e "$.result.entities[0]")
-    echo "{\"ok\": ${ok},\"result\":{\"message_id\": ${message_id}, \"from\":${from}, \"chat\":${chat},\"date\": \"${date}\",\"text\": \"${msg:0:100}\",\"entities\": [${entities}]}}" \
-        | logger -t "telegram_bot[$$]" -p daemon.info
+# POSIX-compliant log function (replaces bash-specific 'function log()' and string slicing)
+log_sender() {
+    _text="$*"
+    _ok=$(echo "${_text}" | jsonfilter -e "$.ok" 2>/dev/null)
+    if [ "${_ok}" != "true" ]; then
+        log_msg "telegram_sender: API Error: ${_text}"
+    fi
 }
 
-IFS=$'\n'
+# POSIX-compliant way to set IFS to newline only
+IFS='
+'
+
 count=0
 full=""
-for item in $items; do
-    send=0
-    count=$((count + ${#item} + 1))
-    if [ "$count" -eq "4096" ]; then
-        send=1
-    elif [ "$count" -gt "4096" ]; then
-        send=2
-    fi
-    if [ "$send" -ne "2" ]; then
-        full="${full}${item}
-"
-    fi
 
-    if [ "$send" -eq "1" ]; then
+# Use a standard for loop with corrected IFS
+for item in $items; do
+    [ -z "$item" ] && continue
+    
+    item_len=$(printf "%s" "$item" | wc -c)
+    # 4096 is the Telegram message limit
+    if [ $((count + item_len + 1)) -gt 4096 ]; then
+        # Send current buffer before it exceeds limit
         response=$(tg_api_call "sendMessage" \
             -d "chat_id=${WRTGRAM_CHAT_ID}" \
             -d "parse_mode=Markdown" \
             --data-urlencode "text=${full}")
-        log "$response"
-        full=""
-        count=0
-    elif [ "$send" -eq "2" ]; then
-        response=$(tg_api_call "sendMessage" \
-            -d "chat_id=${WRTGRAM_CHAT_ID}" \
-            -d "parse_mode=Markdown" \
-            --data-urlencode "text=${full}")
-        log "$response"
-        full="${item}
-"
-        count=${#item}
+        log_sender "$response"
+        full="${item}"
+        count=${item_len}
+    else
+        if [ -z "$full" ]; then
+            full="${item}"
+            count=${item_len}
+        else
+            full="${full}
+${item}"
+            count=$((count + item_len + 1))
+        fi
     fi
 done
 
-if [ "$count" -gt "0" ]; then
+# Send remaining content
+if [ -n "$full" ]; then
     response=$(tg_api_call "sendMessage" \
         -d "chat_id=${WRTGRAM_CHAT_ID}" \
         -d "parse_mode=Markdown" \
         --data-urlencode "text=${full}")
-    log "$response"
+    log_sender "$response"
 fi
