@@ -1,38 +1,15 @@
 #!/usr/bin/env python3
 
-import sys, os, subprocess
-
-def get_uci(path, default=""):
-    try:
-        return subprocess.check_output(["uci", "-q", "get", path]).decode('utf-8').strip()
-    except Exception:
-        return default
-
-URL = get_uci("wrtgram.global.url")
-KEY = get_uci("wrtgram.global.key")
-WRTGRAM_API = f"{URL}{KEY}" if URL and KEY else ""
-CHAT_ID = get_uci("wrtgram.global.my_chat_id")
-TLS_INSECURE = get_uci("wrtgram.global.tls_insecure") == "1"
-
-def tg_send(msg):
-    if not WRTGRAM_API or not CHAT_ID: return
-    cmd = ["curl", "-s"]
-    if TLS_INSECURE:
-        cmd.append("-k")
-    else:
-        cmd.extend(["--capath", "/etc/ssl/certs"])
-        
-    cmd.extend(["-X", "POST", f"{WRTGRAM_API}/sendMessage"])
-    cmd.extend(["-d", f"chat_id={CHAT_ID}"])
-    cmd.extend(["-d", "parse_mode=Markdown"])
-    cmd.extend(["--data-urlencode", f"text={msg}"])
-    
-    try:
-        subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-    except:
-        pass
+import sys, os
+sys.path.append("/usr/lib/wrtgram")
+try:
+    import wrtapi
+except ImportError:
+    # Fallback to local import if testing without installation
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../usr/lib/wrtgram')))
+    import wrtapi
 
 if len(sys.argv) > 1:
     command_new = sys.argv[1].replace("_", r"\_")
-    tg_send(command_new)
-    subprocess.run(["logger", "-t", f"telegram_bot[{os.getpid()}]", "-p", "daemon.info"], input=command_new.encode())
+    wrtapi.send_message(wrtapi.CHAT_ID, command_new)
+    wrtapi.log_msg("telebot", command_new)

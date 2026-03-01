@@ -1,51 +1,13 @@
 #!/usr/bin/env python3
 
-import sys, os, subprocess, json
+import sys, os, json
 
-def get_uci(path, default=""):
-    try:
-        return subprocess.check_output(["uci", "-q", "get", path]).decode('utf-8').strip()
-    except Exception:
-        return default
-
-URL = get_uci("wrtgram.global.url")
-KEY = get_uci("wrtgram.global.key")
-WRTGRAM_API = f"{URL}{KEY}" if URL and KEY else ""
-CHAT_ID = get_uci("wrtgram.global.my_chat_id")
-TLS_INSECURE = get_uci("wrtgram.global.tls_insecure") == "1"
-
-def log_msg(msg):
-    try:
-        proc = subprocess.Popen(["logger", "-t", f"telegram_sender[{os.getpid()}]", "-p", "daemon.info"], stdin=subprocess.PIPE)
-        proc.communicate(msg.encode('utf-8'))
-    except:
-        pass
-
-def tg_api_call(endpoint, form_data=None, data_urlencode=None, method="POST"):
-    if not WRTGRAM_API: return None
-    cmd = ["curl", "-s"]
-    if TLS_INSECURE:
-        cmd.append("-k")
-    else:
-        cmd.extend(["--capath", "/etc/ssl/certs"])
-        
-    cmd.extend(["-X", method, f"{WRTGRAM_API}/{endpoint}"])
-    
-    if form_data:
-        for k, v in form_data.items():
-            cmd.extend(["-d", f"{k}={v}"])
-            
-    if data_urlencode:
-        for k, v in data_urlencode.items():
-            cmd.extend(["--data-urlencode", f"{k}={v}"])
-            
-    try:
-        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-        if output:
-            return json.loads(output.decode('utf-8'))
-    except:
-        pass
-    return None
+sys.path.append("/usr/lib/wrtgram")
+try:
+    import wrtapi
+except ImportError:
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../usr/lib/wrtgram')))
+    import wrtapi
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -59,9 +21,9 @@ if __name__ == "__main__":
         item_len = len(item.encode('utf-8'))
         
         if len(full.encode('utf-8')) + item_len + 1 > 4096:
-            resp = tg_api_call("sendMessage", form_data={"chat_id": CHAT_ID, "parse_mode": "Markdown"}, data_urlencode={"text": full})
+            resp = wrtapi.tg_api_call("sendMessage", form_data={"chat_id": wrtapi.CHAT_ID, "parse_mode": "Markdown"}, data_urlencode={"text": full})
             if not resp or str(resp.get('ok')).lower() != "true":
-                log_msg(f"API Error: {json.dumps(resp) if resp else 'Connection failed'}")
+                wrtapi.log_msg("telegram_sender", f"API Error: {json.dumps(resp) if resp else 'Connection failed'}")
             full = item
         else:
             if not full:
@@ -70,7 +32,7 @@ if __name__ == "__main__":
                 full = full + "\n" + item
 
     if full:
-        resp = tg_api_call("sendMessage", form_data={"chat_id": CHAT_ID, "parse_mode": "Markdown"}, data_urlencode={"text": full})
+        resp = wrtapi.tg_api_call("sendMessage", form_data={"chat_id": wrtapi.CHAT_ID, "parse_mode": "Markdown"}, data_urlencode={"text": full})
         if not resp or str(resp.get('ok')).lower() != "true":
-            log_msg(f"API Error: {json.dumps(resp) if resp else 'Connection failed'}")
+            wrtapi.log_msg("telegram_sender", f"API Error: {json.dumps(resp) if resp else 'Connection failed'}")
 

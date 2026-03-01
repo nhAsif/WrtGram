@@ -1,87 +1,20 @@
 #!/usr/bin/env python3
 
 import sys, os, subprocess, json, time, re
+sys.path.append("/usr/lib/wrtgram")
+try:
+    import wrtapi
+except ImportError:
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../usr/lib/wrtgram')))
+    import wrtapi
 
-# Set process name for easier identification in ps/pgrep
 try:
     with open(f"/proc/{os.getpid()}/comm", "w") as f:
         f.write("telegram_bot")
 except:
     pass
 
-def get_uci(path, default=""):
-    try:
-        return subprocess.check_output(["uci", "-q", "get", path]).decode('utf-8').strip()
-    except Exception:
-        return default
-
-URL = get_uci("wrtgram.global.url")
-KEY = get_uci("wrtgram.global.key")
-WRTGRAM_API = f"{URL}{KEY}" if URL and KEY else ""
-CHAT_ID = get_uci("wrtgram.global.my_chat_id")
-TLS_INSECURE = get_uci("wrtgram.global.tls_insecure") == "1"
-t_str = get_uci("wrtgram.global.timeout", "60")
-TIMEOUT = int(t_str) if t_str.isdigit() else 60
-
 var_file = "/var/run/bot_vars"
-
-def log_msg(msg):
-    try:
-        proc = subprocess.Popen(["logger", "-t", f"telegram_bot[{os.getpid()}]", "-p", "daemon.info"], stdin=subprocess.PIPE)
-        proc.communicate(msg.encode('utf-8'))
-    except:
-        pass
-
-def tg_api_call(endpoint, form_data=None, data_urlencode=None, method="POST"):
-    if not WRTGRAM_API: return None
-    
-    cmd = ["curl", "-s"]
-    if TLS_INSECURE:
-        cmd.append("-k")
-    else:
-        cmd.extend(["--capath", "/etc/ssl/certs"])
-        
-    cmd.extend(["-X", method, f"{WRTGRAM_API}/{endpoint}"])
-    
-    if form_data:
-        for k, v in form_data.items():
-            cmd.extend(["-d", f"{k}={v}"])
-            
-    if data_urlencode:
-        for k, v in data_urlencode.items():
-            cmd.extend(["--data-urlencode", f"{k}={v}"])
-            
-    attempts = 0
-    while attempts < 3:
-        try:
-            output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-            if output:
-                return json.loads(output.decode('utf-8'))
-        except:
-            pass
-        attempts += 1
-        time.sleep(2)
-    return None
-
-def tg_api_call_getUpdates(offset, timeout):
-    if not WRTGRAM_API: return None
-    cmd = ["curl", "-s"]
-    if TLS_INSECURE:
-        cmd.append("-k")
-    else:
-        cmd.extend(["--capath", "/etc/ssl/certs"])
-    
-    cmd.extend(["-X", "GET", f"{WRTGRAM_API}/getUpdates?offset={offset}&timeout={timeout}"])
-    try:
-        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-        if output:
-            return json.loads(output.decode('utf-8'))
-    except:
-        pass
-    return None
-
-def send_message(chat_id, text, parse_mode="Markdown"):
-    return tg_api_call("sendMessage", form_data={"chat_id": chat_id, "parse_mode": parse_mode}, data_urlencode={"text": text})
 
 # Persistent offset
 offset = 0
@@ -101,18 +34,30 @@ def save_offset(o):
 starting = True
 start_time = int(time.time())
 
-log_msg("service starting")
+wrtapi.log_msg("telegram_bot", "service starting")
 
-if CHAT_ID:
-    send_message(CHAT_ID, "🚀 *WrtGram Bot Started*\nSystem is online and ready for commands! Send [/start](/start) to see available commands.")
+if wrtapi.CHAT_ID:
+    wrtapi.send_message(wrtapi.CHAT_ID, "🚀 *WrtGram Bot Started*\nSystem is online and ready for commands! Send [/start](/start) to see available commands.")
+
+def getUpdates_api(offset, timeout):
+    if not wrtapi.WRTGRAM_API: return None
+    cmd = ["curl", "-s"]
+    if wrtapi.TLS_INSECURE: cmd.append("-k")
+    else: cmd.extend(["--capath", "/etc/ssl/certs"])
+    cmd.extend(["-X", "GET", f"{wrtapi.WRTGRAM_API}/getUpdates?offset={offset}&timeout={timeout}"])
+    try:
+        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        if output: return json.loads(output.decode('utf-8'))
+    except: pass
+    return None
 
 while True:
     try:
         query_offset = offset + 1 if offset > 0 else ""
-        updates = tg_api_call_getUpdates(query_offset, TIMEOUT)
+        updates = getUpdates_api(query_offset, wrtapi.TIMEOUT)
         
         if not updates or str(updates.get("ok")).lower() != "true":
-            log_msg("getUpdates failed or empty, retrying in 5s...")
+            wrtapi.log_msg("telegram_bot", "getUpdates failed or empty, retrying in 5s...")
             time.sleep(5)
             continue
 
@@ -157,29 +102,36 @@ while True:
             if starting and msg_date < start_time:
                 continue
                 
-            if not CHAT_ID or origin != CHAT_ID:
-                log_msg(f"Unauthorized access attempt by ID {origin}")
+            if not wrtapi.CHAT_ID or origin != wrtapi.CHAT_ID:
+                wrtapi.log_msg("telegram_bot", f"Unauthorized access attempt by ID {origin}")
                 if origin:
-                    send_message(origin, "This is a private bot.")
-                    tg_api_call("leaveChat", form_data={"chat_id": origin})
+                    wrtapi.send_message(origin, "This is a private bot.")
+                    wrtapi.tg_api_call("leaveChat", form_data={"chat_id": origin})
                 continue
                 
             typing_proc = subprocess.Popen(["/sbin/typing"])
             
             try:
                 if msg_obj and is_cmd:
-                    plugin_path = f"/usr/lib/wrtgram/plugins{cmd}"
-                    if os.path.exists(plugin_path) and os.path.isfile(plugin_path):
+                    plugin_base = f"/usr/lib/wrtgram/plugins{cmd}"
+                    py_plugin = f"{plugin_base}.py"
+                    
+                    if os.path.exists(py_plugin) or (os.path.exists(plugin_base) and os.path.isfile(plugin_base)):
                         if cmd == "/reboot" and starting:
                             pass
                         else:
                             cwd_path = "/usr/lib/wrtgram/plugins"
-                            log_msg(f"Call {cmd} [{parms}]")
+                            wrtapi.log_msg("telegram_bot", f"Call {cmd} [{parms}]")
                             
                             parms_sanitized = re.sub(r'["&;<>|\\]+', '', parms)
-                            p_args = [plugin_path]
+                            
+                            # Select python script natively if exists
+                            if os.path.exists(py_plugin):
+                                p_args = ["/usr/bin/env", "python3", py_plugin]
+                            else:
+                                p_args = [plugin_base]
+                                
                             if parms_sanitized:
-                                # We split parms exactly like bash did: words
                                 p_args.extend(parms_sanitized.split())
                                 
                             try:
@@ -194,21 +146,26 @@ while True:
                                 
                             subprocess.run(["/sbin/telegram_sender", result])
                     else:
-                        send_message(CHAT_ID, f"Command *{cmd}* not found!")
+                        wrtapi.send_message(wrtapi.CHAT_ID, f"Command *{cmd}* not found!")
                         
                 elif cb_obj:
-                    # Final cmd inside cb_obj separates fcmd and params with |
                     parts = final_cmd.split("|", 1)
                     fcmd = parts[0]
                     fprms = parts[1] if len(parts) > 1 else ""
                     
-                    action_path = f"/usr/lib/wrtgram/plugins/actions/{fcmd}"
-                    if os.path.exists(action_path) and os.path.isfile(action_path):
+                    action_base = f"/usr/lib/wrtgram/plugins/actions/{fcmd}"
+                    py_action = f"{action_base}.py"
+                    
+                    if os.path.exists(py_action) or (os.path.exists(action_base) and os.path.isfile(action_base)):
                         cwd_path = "/usr/lib/wrtgram/plugins/actions"
-                        log_msg(f"Call Action {fcmd}")
+                        wrtapi.log_msg("telegram_bot", f"Call Action {fcmd}")
                         parameter = re.sub(r'[&;<>|\\]+', '', fprms)
                         
-                        p_args = [f"./{fcmd}"]
+                        if os.path.exists(py_action):
+                            p_args = ["/usr/bin/env", "python3", py_action]
+                        else:
+                            p_args = [f"./{fcmd}"]
+                            
                         if parameter:
                             p_args.append(parameter)
                         
@@ -221,22 +178,18 @@ while True:
                             else:
                                 result = "1|Error occurred|"
                                 
-                        # Result logic from bash: remove_flag|message|optional_keyboard
-                        # Some messages might contain `^` used to split but previously we bypassed that in Python wrapper.
-                        # Wait, bash script was `IFS="\^"`. Here we can just take the string and split by | once correctly.
                         result = result.replace('^', '')
                         
-                        # Use partition because text could have internal pipelines
                         parts = result.split("|", 2)
                         remove = parts[0].strip() if len(parts) > 0 else "0"
                         msg = parts[1].strip() if len(parts) > 1 else ""
                         keyboard = parts[2].strip() if len(parts) > 2 else ""
                         
-                        tg_api_call("answerCallbackQuery", form_data={"callback_query_id": query_ans, "text": "Updated"})
+                        wrtapi.tg_api_call("answerCallbackQuery", form_data={"callback_query_id": query_ans, "text": "Updated"})
                         
                         if remove == "1":
                             data = {
-                                "chat_id": CHAT_ID,
+                                "chat_id": wrtapi.CHAT_ID,
                                 "message_id": msg_id_ans,
                                 "parse_mode": "Markdown"
                             }
@@ -244,12 +197,12 @@ while True:
                             if keyboard:
                                 data["reply_markup"] = keyboard
                                 
-                            tg_api_call("editMessageText", form_data=data, data_urlencode=data_url)
+                            wrtapi.tg_api_call("editMessageText", form_data=data, data_urlencode=data_url)
                     else:
-                        send_message(CHAT_ID, f"Command Action *{fcmd}* not found!")
+                        wrtapi.send_message(wrtapi.CHAT_ID, f"Command Action *{fcmd}* not found!")
                         
                 elif msg_obj:
-                    send_message(CHAT_ID, "Sorry,\nI only recognize *commands*.\nCommands are words beginning with a slash.\nTry it !\nSend [/start](/start) to get my commands list.")
+                    wrtapi.send_message(wrtapi.CHAT_ID, "Sorry,\nI only recognize *commands*.\nCommands are words beginning with a slash.\nTry it !\nSend [/start](/start) to get my commands list.")
                     
             finally:
                 typing_proc.terminate()
@@ -257,6 +210,6 @@ while True:
                 
         starting = False
     except Exception as e:
-        log_msg(f"telegram_bot error in main loop: {e}")
+        wrtapi.log_msg("telegram_bot", f"error in main loop: {e}")
         time.sleep(5)
 

@@ -52,6 +52,8 @@ define Package/wrtgram/install
 	$(INSTALL_DIR) $(1)/usr/lib/wrtgram
 	$(INSTALL_BIN) ./usr/lib/wrtgram/common \
 		$(1)/usr/lib/wrtgram
+	$(INSTALL_DATA) ./usr/lib/wrtgram/wrtapi.py \
+		$(1)/usr/lib/wrtgram
 
 	$(INSTALL_DIR) $(1)/usr/share/wrtgram
 	echo "$(PKG_VERSION)-$(PKG_RELEASE)" > $(1)/usr/share/wrtgram/version
