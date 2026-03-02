@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=wrtgram
 
-PKG_VERSION:=2.2
+PKG_VERSION:=3.0
 PKG_RELEASE:=1
 
 PKG_LICENSE:=GPL-2.0
@@ -54,6 +54,10 @@ define Package/wrtgram/install
 	$(INSTALL_DIR) $(1)/usr/share/wrtgram
 	echo "$(PKG_VERSION)-$(PKG_RELEASE)" > $(1)/usr/share/wrtgram/version
 	
+	$(INSTALL_DIR) $(1)/usr/lib/wrtgram
+	$(INSTALL_BIN) ./usr/lib/wrtgram/wrtgramlib.py \
+		$(1)/usr/lib/wrtgram
+
 	$(INSTALL_DIR) $(1)/usr/lib/wrtgram/plugins/actions
 	$(INSTALL_BIN) ./usr/lib/wrtgram/plugins/actions/fwr_disable \
 				./usr/lib/wrtgram/plugins/actions/fw_delete \
@@ -161,13 +165,24 @@ define Package/wrtgram/install
         		./usr/lib/wrtgram/plugins/opkg_install \
         		./usr/lib/wrtgram/plugins/opkg_update \
 				./usr/lib/wrtgram/plugins/status \
+				./usr/lib/wrtgram/plugins/status.py \
 				./usr/lib/wrtgram/plugins/cf_tunnel \
 				./usr/lib/wrtgram/plugins/cf_tunnel_stop \
 				./usr/lib/wrtgram/plugins/lan_scan \
+				./usr/lib/wrtgram/plugins/lan_scan.py \
+				./usr/lib/wrtgram/plugins/interfaces_list \
+				./usr/lib/wrtgram/plugins/interfaces_list.py \
+				./usr/lib/wrtgram/plugins/fw_list \
+				./usr/lib/wrtgram/plugins/fw_list.py \
+				./usr/lib/wrtgram/plugins/wifi_list \
+				./usr/lib/wrtgram/plugins/wifi_list.py \
 		$(1)/usr/lib/wrtgram/plugins
 
 	$(INSTALL_DIR) $(1)/sbin
-	$(INSTALL_BIN) ./sbin/telebot \
+	$(INSTALL_BIN) ./sbin/bot.py \
+				./sbin/hosts_scan.py \
+				./sbin/lanports.py \
+				./sbin/telebot \
 				./sbin/telegram_bot \
 				./sbin/telekeyboard \
 				./sbin/hosts_scan \
