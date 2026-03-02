@@ -179,7 +179,7 @@ jobs:
 
   pre-release:
     if: github.event_name != 'pull_request' && github.ref_name == 'main'
-    needs: [build-openwrt]
+    needs: [prepare, build-openwrt]
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -240,9 +240,9 @@ jobs:
         uses: slord399/action-automatic-releases@v1.0.1
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          automatic_release_tag: v2.2
+          automatic_release_tag: v${{ needs.prepare.outputs.version }}
           prerelease: false
-          title: WrtGram Release v2.2
+          title: WrtGram Release v${{ needs.prepare.outputs.version }}
           files: |
             ./repo/packages/*.ipk
             ./repo/packages/Packages
