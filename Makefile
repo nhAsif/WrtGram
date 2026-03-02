@@ -170,11 +170,8 @@ define Package/wrtgram/install
 				./usr/lib/wrtgram/plugins/cf_tunnel_stop \
 				./usr/lib/wrtgram/plugins/lan_scan \
 				./usr/lib/wrtgram/plugins/lan_scan.py \
-				./usr/lib/wrtgram/plugins/interfaces_list \
 				./usr/lib/wrtgram/plugins/interfaces_list.py \
-				./usr/lib/wrtgram/plugins/fw_list \
 				./usr/lib/wrtgram/plugins/fw_list.py \
-				./usr/lib/wrtgram/plugins/wifi_list \
 				./usr/lib/wrtgram/plugins/wifi_list.py \
 		$(1)/usr/lib/wrtgram/plugins
 
