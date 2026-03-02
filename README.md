@@ -1,28 +1,35 @@
 # WrtGram
 
-A set of scripts to manage and monitor an OpenWrt router through Telegram.
+A set of scripts to manage and monitor an OpenWrt router through Telegram, now rewritten in Python for improved performance and features.
 
-WrtGram provides a simple yet powerful way to interact with your OpenWrt router using a Telegram bot. It features a lightweight, extensible plugin architecture, allowing you to easily add new commands and features.
+WrtGram provides a simple yet powerful way to interact with your OpenWrt router using a Telegram bot. It features a lightweight, extensible plugin architecture, allowing you to easily add new commands and features using either Python or Shell scripts.
 
 ## Features
 
-*   **Telegram Bot Integration:** Control your OpenWrt router using simple Telegram commands.
-*   **Extensible Plugin Architecture:** Easily add new functionality by creating simple shell scripts.
-*   **System Monitoring:** Get notified about LAN port status changes, DHCP leases, and more.
+*   **Asynchronous Python Bot:** Built with `python-telegram-bot` (v20+) for high-performance, non-blocking interaction.
+*   **Extensible Plugin Architecture:** Easily add new functionality by creating simple shell or Python scripts.
+*   **Interactive Inline Keyboards:** Direct router control through native Telegram buttons (no more external context scripts).
+*   **System Monitoring:** Get notified about LAN port status changes, DHCP leases, and more via async background daemons.
 *   **UCI Compliant:** Uses the standard OpenWrt Unified Configuration Interface (UCI) for configuration.
-*   **Rich Command Set:** Comes with a wide range of pre-built commands for common administrative tasks.
+*   **Rich Command Set:** Comes with a wide range of pre-built commands for common administrative tasks, including a richer `/status` view.
 *   **New User Connection Notification:** Sends a notification to the bot when a new user connects to the network.
 
 ## How it Works
 
-The core of the project is a daemon script that polls the Telegram API for new messages. When a command is received from an authorized user, the script executes a corresponding plugin from the `/usr/lib/wrtgram/plugins/` directory. The output of the plugin is then sent back to the user as the response.
+The core of the project consists of three Python-based background services:
+1.  `telegram_bot`: The main async daemon that listens for Telegram messages and executes plugins.
+2.  `lanports`: An async log monitor that watches for LAN and DHCP events.
+3.  `hosts_scan`: A parallelized scanner that identifies new hosts on the network.
+
+When a command is received from an authorized user, the bot executes a corresponding plugin from the `/usr/lib/wrtgram/plugins/` directory.
 
 ## Getting Started
 
 ### Prerequisites
 
-*   An OpenWrt router.
+*   An OpenWrt router with Python 3 installed.
 *   A Telegram account.
+*   The `python-telegram-bot` library.
 
 ### Installation and Configuration
 
@@ -36,10 +43,16 @@ The core of the project is a daemon script that polls the Telegram API for new m
     curl -s -k -X GET https://api.telegram.org/bot<YOUR BOT TOKEN>/getUpdates | grep -oE '"id":[[:digit:]]+' | head -n1 | awk -F : '{print $2}'
     ```
 
-    This will return your unique Chat ID.
+3.  **Install Dependencies:**
+    Ensure Python 3 is installed and then install the required Telegram library:
 
-3.  **Configure the Bot:**
-    Open the configuration file `/etc/config/wrtgram` and set the following options:
+    ```bash
+    opkg update && opkg install python3-pip
+    pip3 install python-telegram-bot
+    ```
+
+4.  **Configure the Bot:**
+    Open the configuration file `/etc/config/wrtgram` and set your token and chat ID:
 
     ```
     config wrtgram 'global'
@@ -47,70 +60,73 @@ The core of the project is a daemon script that polls the Telegram API for new m
         option my_chat_id '<YOUR CHAT ID>'
     ```
 
-4.  **Enable and Start the Services:**
-    Run the following commands to enable and start the necessary services:
+5.  **Enable and Start the Services:**
+    Run the following commands to enable and start the services:
 
     ```bash
-    /etc/init.d/lanports enable && /etc/init.d/telegram_bot enable
-    /etc/init.d/lanports start && /etc/init.d/telegram_bot start
+    /etc/init.d/lanports enable && /etc/init.d/hosts_scan enable && /etc/init.d/telegram_bot enable
+    /etc/init.d/lanports start && /etc/init.d/hosts_scan start && /etc/init.d/telegram_bot start
     ```
 
 Your bot should now be running and ready to accept commands.
 
 ## Plugins
 
-Plugins are simple shell scripts located in the `/usr/lib/wrtgram/plugins/` directory. The name of the script corresponds to the command you send to the bot (e.g., the `get_ip` script is executed by the `/get_ip` command).
+Plugins are scripts located in the `/usr/lib/wrtgram/plugins/` directory. Both Shell scripts (no extension) and Python scripts (`.py` extension) are supported.
 
 ### Included Commands
 
 The following commands are included by default:
 
-*   `/cf_tunnel [port]`: Creates a temporary Cloudflare tunnel to a specified port (defaults to 80).
+*   `/cf_tunnel [port]`: Creates a temporary Cloudflare tunnel (defaults to 80).
 *   `/cf_tunnel_stop`: Stops the running Cloudflare tunnel.
-*   `/fw_add <hostname> [time]`: Blocks a hostname in the firewall. Can be time-based.
+*   `/fw_add <hostname> [time]`: Blocks a hostname in the firewall.
 *   `/fw_delete [hostname]`: Removes a firewall rule for a hostname.
 *   `/fw_disable`: Disables a firewall rule.
 *   `/fw_enable`: Enables a firewall rule.
-*   `/fw_list`: Lists all firewall rules.
+*   `/fw_list`: Lists all firewall rules (structured output).
 *   `/fw_unblock`: Removes a block rule for a hostname.
 *   `/fwr_disable`: Disables a redirect firewall rule.
 *   `/fwr_enable`: Enables a redirect firewall rule.
 *   `/fwr_list`: Lists all redirect firewall rules.
 *   `/get_ip`: Gets the WAN IP address.
 *   `/get_mac <mac_address>`: Gets the vendor of a MAC address.
-*   `/get_ping <host>`: Pings a host to check its status.
+*   `/get_ping <host>`: Pings a host.
 *   `/get_uptime`: Shows the router's uptime.
-*   `/hst_list [hostname]`: Lists DHCP leases, optionally filtering by hostname.
-*   `/ignoredmac_add <mac_address>`: Adds a MAC address to the ignore list for new connection notifications.
+*   `/help`: Lists all available commands with their descriptions.
+*   `/hst_list [hostname]`: Lists DHCP leases.
+*   `/ignoredmac_add <mac_address>`: Adds a MAC address to the notification ignore list.
 *   `/ignoredmac_list`: Lists ignored MAC addresses.
 *   `/interface_down <interface>`: Shuts down a network interface.
 *   `/interface_restart <interface>`: Restarts a network interface.
 *   `/interface_up <interface>`: Starts up a network interface.
-*   `/interfaces_list`: Lists all network interfaces and their status.
-*   `/lan_scan`: Scans the LAN for active and inactive devices and shows their IP and MAC addresses.
+*   `/interfaces_list`: Lists all network interfaces and their status (parsed from ubus JSON).
+*   `/lan_scan`: Scans the LAN for active devices (using async parallel scanning).
 *   `/netstat`: Shows network connections.
 *   `/opkg_install <package>`: Installs an OpenWrt package.
-*   `/opkg_update`: Updates the list of available packages.
+*   `/opkg_update`: Updates the package list.
 *   `/proc_list`: Lists running processes.
 *   `/proc_restart <service>`: Restarts a service.
 *   `/proc_start <service>`: Starts a service.
 *   `/proc_stop <service>`: Stops a service.
 *   `/reboot`: Reboots the router.
-*   `/start`: Shows the main help menu with all commands.
-*   `/status`: Shows router status including uptime, CPU load, RAM usage, and temperature.
-*   `/swports_list`: Lists the status of all switch ports.
+*   `/start`: Shows the welcome message.
+*   `/status`: Shows rich router status with uptime, CPU load, and RAM usage bar.
+*   `/swports_list`: Lists the status of switch ports.
 *   `/tmate`: Creates a new tmate session for remote access.
 *   `/wifi_disable <device>`: Disables a Wi-Fi radio.
 *   `/wifi_enable <device>`: Enables a Wi-Fi radio.
-*   `/wifi_list`: Lists all Wi-Fi devices.
+*   `/wifi_list`: Lists all Wi-Fi devices with signal data.
 *   `/wifi_restart <device>`: Restarts a Wi-Fi radio.
 *   `/wll_list`: Lists connected Wi-Fi clients.
 
 ### Creating Your Own Plugins
 
-To add a new command, simply create a new shell script in the `/usr/lib/wrtgram/plugins/` directory. The script can contain any valid OpenWrt shell commands. Any output from the script will be sent back to the user as a message.
+To add a new command, create a new Shell or Python script in `/usr/lib/wrtgram/plugins/`.
+-   **Shell Plugins:** Use standard script naming (e.g., `my_cmd`).
+-   **Python Plugins:** End with `.py` (e.g., `my_cmd.py`).
 
-You can also add a help file for your command in the `/usr/lib/wrtgram/plugins/help/` directory. The name of the help file should be the same as your command's name.
+The bot automatically identifies these and adds them to the `/help` list if a corresponding help file exists in `/usr/lib/wrtgram/plugins/help/`.
 
 ## Services
 
