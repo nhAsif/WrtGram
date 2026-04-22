@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+"""
+ai.py – AI Assistant plugin for WrtGram.
+Calls OpenRouter and allows direct router management via [EXEC: command] tags.
+"""
+
+import sys
+import json
+import urllib.request
+import logging
+from wrtgramlib import get_config, get_plugins_context, subprocess_cmd
+
+# Simple logging for the plugin
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("ai_plugin")
+
+def ask_ai(prompt):
+    cfg = get_config()
+    api_key = cfg.get("openrouter_key")
+    model = cfg.get("openrouter_model")
+
+    if not api_key:
+        return "❌ OpenRouter API key not configured in UCI (wrtgram.global.openrouter_key)."
+
+    # Gather system context
+    plugins_context = get_plugins_context()
+    system_status = subprocess_cmd(["uptime"])
+    
+    system_instruction = (
+        "You are a specialized AI assistant for an OpenWrt router named WrtGram. "
+        "You have full root access to the system. "
+        "You can execute any shell command (uci, ubus, opkg, etc.) or use existing WrtGram plugins. "
+        f"\n\n{plugins_context}\n\n"
+        f"Current System Uptime: {system_status}\n\n"
+        "INSTRUCTIONS:\n"
+        "1. If a user asks for information or to perform an action, identify the correct command.\n"
+        "2. To execute a command, wrap it exactly like this: [EXEC: command_here].\n"
+        "3. You can provide multiple [EXEC: ...] tags if needed.\n"
+        "4. Be concise. Explain what you are doing before executing.\n"
+        "5. Example: To list wifi networks, you might say 'I will list the wifi networks for you: [EXEC: wifi_list]'.\n"
+        "6. If you need to run a native command, use it directly, e.g., [EXEC: uci show wireless].\n"
+    )
+
+    data = json.dumps({
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": prompt}
+        ]
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        "https://openrouter.ai/api/v1/chat/completions",
+        data=data,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/nhAsif/WrtGram",
+            "X-Title": "WrtGram Bot",
+        }
+    )
+
+    try:
+        with urllib.request.urlopen(req) as response:
+            res = json.loads(response.read().decode())
+            if 'choices' in res and len(res['choices']) > 0:
+                return res['choices'][0]['message']['content']
+            else:
+                return f"❌ Unexpected response from OpenRouter: {json.dumps(res)}"
+    except Exception as e:
+        return f"❌ OpenRouter API Error: {str(e)}"
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("🤖 *I am your AI assistant.*\nUsage: `/ai <your question or command>`")
+    else:
+        user_prompt = " ".join(sys.argv[1:])
+        print(ask_ai(user_prompt))

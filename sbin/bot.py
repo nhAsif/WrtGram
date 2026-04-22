@@ -376,6 +376,29 @@ async def dispatch_plugin(update: Update, context: ContextTypes.DEFAULT_TYPE, co
     except Exception:
         pass
 
+    # Special handling for AI command: parse and execute [EXEC: command] tags
+    if cmd == "/ai" and "[EXEC:" in result:
+        # Send the AI's explanation first
+        await send_message(context.bot, update.effective_chat.id, result)
+        
+        # Extract and run commands
+        commands = re.findall(r"\[EXEC:\s*(.*?)\]", result)
+        for c in commands:
+            c = c.strip()
+            # If it's a plugin, run it via run_plugin, otherwise use subprocess_cmd
+            plugin_name = c.split()[0]
+            full_plugin_path = os.path.join(PLUGINS_DIR, plugin_name)
+            
+            await send_message(context.bot, update.effective_chat.id, f"🛠 *Executing:* `{c}`")
+            
+            if os.path.isfile(full_plugin_path):
+                exec_result = run_plugin(full_plugin_path, " ".join(c.split()[1:]))
+            else:
+                exec_result = subprocess_cmd(c.split())
+            
+            await send_message(context.bot, update.effective_chat.id, exec_result or "_(done)_")
+        return
+
     # Send the actual result (supports chunking via send_message)
     await send_message(
         context.bot,

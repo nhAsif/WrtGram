@@ -64,7 +64,8 @@ define Package/wrtgram/install
 	$(INSTALL_DATA) ./usr/lib/wrtgram/plugins/help/* $(1)/usr/lib/wrtgram/plugins/help/
 
 	$(INSTALL_DIR) $(1)/usr/lib/wrtgram/plugins
-	$(INSTALL_BIN) ./usr/lib/wrtgram/plugins/fw* \
+	$(INSTALL_BIN) ./usr/lib/wrtgram/plugins/ai \
+				./usr/lib/wrtgram/plugins/fw* \
 				./usr/lib/wrtgram/plugins/get* \
 				./usr/lib/wrtgram/plugins/hst* \
 				./usr/lib/wrtgram/plugins/ignoredmac* \

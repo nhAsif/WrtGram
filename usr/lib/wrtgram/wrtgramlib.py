@@ -34,7 +34,7 @@ def _uci(key: str) -> str:
 def get_config() -> dict:
     """Return WrtGram config as a dict with keys:
     key, url, api, my_chat_id, timeout, ignored_macaddrs_file,
-    smtp_from, smtp_to.
+    smtp_from, smtp_to, openrouter_key, openrouter_model.
     """
     url = _uci("wrtgram.global.url")
     key = _uci("wrtgram.global.key")
@@ -47,7 +47,27 @@ def get_config() -> dict:
         "ignored_macaddrs_file": _uci("wrtgram.global.ignored_macaddrs_file"),
         "smtp_from": _uci("wrtgram.smtp.from"),
         "smtp_to": _uci("wrtgram.smtp.to"),
+        "openrouter_key": _uci("wrtgram.global.openrouter_key"),
+        "openrouter_model": _uci("wrtgram.global.openrouter_model") or "meta-llama/llama-3.1-8b-instruct:free",
     }
+
+
+def get_plugins_context() -> str:
+    """Read all plugin help files to provide context for the AI."""
+    import os
+    help_dir = "/usr/lib/wrtgram/plugins/help"
+    context = ["Available WrtGram Plugins:"]
+    try:
+        if os.path.exists(help_dir):
+            for f in sorted(os.listdir(help_dir)):
+                help_file = os.path.join(help_dir, f)
+                if os.path.isfile(help_file):
+                    with open(help_file, "r") as fh:
+                        desc = fh.read().strip()
+                        context.append(f"- {f}: {desc}")
+    except Exception as e:
+        logger.error("Error gathering plugins context: %s", e)
+    return "\n".join(context)
 
 # ---------------------------------------------------------------------------
 # Message Sending

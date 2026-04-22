@@ -4,6 +4,8 @@ config wrtgram 'global'
 	option my_chat_id '[PUT ID OF THE CHAT THAT YOU START WITH BOT]'
 	option timeout '60'
 	option ignored_macaddrs_file '/etc/wrtgram/macaddr.ignore'
+	option openrouter_key '[PUT YOUR OPENROUTER API KEY HERE]'
+	option openrouter_model 'meta-llama/llama-3.1-8b-instruct:free'
 
 config wrtgram 'smtp'
 	option from '[MAIL FROM]'
