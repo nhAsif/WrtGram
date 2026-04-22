@@ -12,8 +12,11 @@ Dependencies (opkg / pip3):
 """
 
 import asyncio
+import json
 import logging
 import os
+import random
+import re
 import sys
 
 # Allow importing wrtgramlib from its installed location
@@ -21,8 +24,10 @@ sys.path.insert(0, "/usr/lib/wrtgram")
 
 from telegram import (
     Bot,
+    BotCommand,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    ReplyKeyboardMarkup,
     Update,
 )
 from telegram.constants import ChatAction, ParseMode
@@ -122,6 +127,19 @@ async def send_typing(context: ContextTypes.DEFAULT_TYPE, chat_id: int | str) ->
 
 
 # ---------------------------------------------------------------------------
+# Keyboards & Menus
+# ---------------------------------------------------------------------------
+
+def get_main_menu_keyboard() -> ReplyKeyboardMarkup:
+    """Bottom persistent menu."""
+    keyboard = [
+        ["📊 Status", "🌐 WiFi"],
+        ["🛡️ Firewall", "🛠️ Help"],
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+
+# ---------------------------------------------------------------------------
 # /start command
 # ---------------------------------------------------------------------------
 
@@ -132,12 +150,28 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     await send_typing(context, update.effective_chat.id)
     name = update.effective_user.first_name or "there"
+    
+    greetings = [
+        f"👋 *Hello, {name}!*",
+        f"🚀 *Welcome back, {name}!*",
+        f"🛡️ *WrtGram at your service, {name}!*",
+        f"⚙️ *System online. Greetings, {name}!*",
+    ]
+    
     text = (
-        f"👋 *Hello, {name}!*\n\n"
-        "I can help you manage and monitor your *OpenWrt* router.\n\n"
-        "Use /help to see all available commands."
+        f"{random.choice(greetings)}\n\n"
+        "I am your *OpenWrt* companion. I'll help you monitor and manage your router with ease.\n\n"
+        "✨ *Quick Actions:*\n"
+        "• Check status with 📊 *Status*\n"
+        "• Manage 🌐 *WiFi* or 🛡️ *Firewall*\n"
+        "• Explore all commands via /help\n\n"
+        "What shall we do today?"
     )
-    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(
+        text, 
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=get_main_menu_keyboard()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -151,23 +185,51 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     await send_typing(context, update.effective_chat.id)
 
-    lines = ["🛠 *Available Commands*\n"]
+    categories = {
+        "📊 *Status & Info*": ["status", "get_ip", "get_mac", "get_ping", "get_uptime", "hst_list", "lan_scan", "netstat", "swports_list"],
+        "🌐 *WiFi Management*": ["wifi_list", "wifi_enable", "wifi_disable", "wifi_restart", "wll_list"],
+        "🛡️ *Firewall & Security*": ["fw_list", "fw_add", "fw_delete", "fw_enable", "fw_disable", "fw_unblock", "fwr_list", "fwr_enable", "fwr_disable", "ignoredmac_list", "ignoredmac_add"],
+        "🔌 *Network Interfaces*": ["interfaces_list", "interface_up", "interface_down", "interface_restart"],
+        "⚙️ *System & Processes*": ["proc_list", "proc_start", "proc_stop", "proc_restart", "reboot", "opkg_update", "opkg_install", "tmate", "cf_tunnel", "cf_tunnel_stop"],
+    }
+
+    lines = ["🛠 *WrtGram Help Menu*\n"]
+    
     try:
-        plugins = sorted(
-            f for f in os.listdir(PLUGINS_DIR)
-            if os.path.isfile(os.path.join(PLUGINS_DIR, f))
-        )
-        for plug in plugins:
-            help_file = os.path.join(HELP_DIR, plug)
-            if os.path.isfile(help_file):
-                with open(help_file) as fh:
-                    desc = fh.read().strip()
-            else:
+        all_plugins = [f for f in os.listdir(PLUGINS_DIR) if os.path.isfile(os.path.join(PLUGINS_DIR, f))]
+        categorized = []
+
+        for cat_name, p_list in categories.items():
+            cat_lines = []
+            for p in sorted(p_list):
+                if p in all_plugins:
+                    help_file = os.path.join(HELP_DIR, p)
+                    desc = "No description."
+                    if os.path.isfile(help_file):
+                        with open(help_file) as fh:
+                            desc = fh.read().strip()
+                    cat_lines.append(f"• [/{p}](/{p}) – {desc}")
+                    categorized.append(p)
+            
+            if cat_lines:
+                lines.append(f"\n{cat_name}")
+                lines.extend(cat_lines)
+
+        # Handle uncategorized plugins
+        others = sorted([p for p in all_plugins if p not in categorized and p != "start"])
+        if others:
+            lines.append("\n📦 *Other Commands*")
+            for p in others:
+                help_file = os.path.join(HELP_DIR, p)
                 desc = "No description."
-            lines.append(f"[/{plug}](/{plug}) – {desc}")
+                if os.path.isfile(help_file):
+                    with open(help_file) as fh:
+                        desc = fh.read().strip()
+                lines.append(f"• [/{p}](/{p}) – {desc}")
+
     except Exception as exc:
         logger.error("Error building help: %s", exc)
-        lines.append("_(Could not load command list.)_")
+        lines.append("\n_(Could not load command list.)_")
 
     await send_message(
         context.bot,
@@ -188,7 +250,6 @@ def _build_fw_keyboard(action_cmd: str) -> InlineKeyboardMarkup:
         if "@rule" not in line or ".name=" not in line:
             continue
         # Extract rule index and name
-        import re
         m = re.search(r"@rule\[(\d+)\]\.name='([^']+)'", line)
         if not m:
             continue
@@ -203,7 +264,6 @@ def _build_fw_keyboard(action_cmd: str) -> InlineKeyboardMarkup:
 
 def _build_wifi_keyboard(action_cmd: str) -> InlineKeyboardMarkup:
     """Build inline keyboard with WiFi networks (replaces ctx/wifi_list)."""
-    import re
     raw = subprocess_cmd(["uci", "-q", "show", "wireless"])
     buttons = []
     for line in raw.splitlines():
@@ -220,7 +280,6 @@ def _build_wifi_keyboard(action_cmd: str) -> InlineKeyboardMarkup:
 
 def _build_interfaces_keyboard(action_cmd: str) -> InlineKeyboardMarkup:
     """Build inline keyboard with network interfaces (replaces ctx/interfaces_list)."""
-    import json
     raw = subprocess_cmd(["ubus", "call", "network.interface", "dump"])
     buttons = []
     try:
@@ -245,6 +304,13 @@ def _build_reboot_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
+def _build_status_keyboard() -> InlineKeyboardMarkup:
+    """Add a refresh button to the status message."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔄 Refresh Status", callback_data="refresh_status|")]
+    ])
+
+
 # Commands that need an inline keyboard (map command → builder fn)
 _KEYBOARD_COMMANDS: dict = {
     "/fw_list":         ("fw_list",         _build_fw_keyboard),
@@ -252,6 +318,7 @@ _KEYBOARD_COMMANDS: dict = {
     "/wifi_list":       ("wifi_list",       _build_wifi_keyboard),
     "/interfaces_list": ("interfaces_list", _build_interfaces_keyboard),
     "/reboot":          (None,              lambda _: _build_reboot_keyboard()),
+    "/status":          (None,              lambda _: _build_status_keyboard()),
 }
 
 
@@ -284,6 +351,12 @@ async def dispatch_plugin(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     logger.info("Dispatching plugin: %s params=%r", cmd, params)
 
+    # Send a "Processing" message for better UX
+    processing_msg = await update.message.reply_text(
+        f"⏳ *Processing /{cmd.lstrip('/')}...*",
+        parse_mode=ParseMode.MARKDOWN
+    )
+
     # Commands that also get an inline keyboard
     keyboard = None
     if cmd in _KEYBOARD_COMMANDS:
@@ -291,6 +364,14 @@ async def dispatch_plugin(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         keyboard = builder_fn(action_cmd)
 
     result = run_plugin(plugin_path, params)
+    
+    # Remove the processing message
+    try:
+        await processing_msg.delete()
+    except Exception:
+        pass
+
+    # Send the actual result (supports chunking via send_message)
     await send_message(
         context.bot,
         update.effective_chat.id,
@@ -330,6 +411,20 @@ async def dispatch_action(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             await query.edit_message_text("❌ Reboot cancelled.")
         return
 
+    if action_name == "refresh_status":
+        plugin_path = os.path.join(PLUGINS_DIR, "status")
+        result = run_plugin(plugin_path)
+        try:
+            await query.edit_message_text(
+                result or "_(no output)_",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=_build_status_keyboard()
+            )
+        except Exception as exc:
+            # Likely message is identical, just ignore
+            logger.debug("Refresh status edit failed: %s", exc)
+        return
+
     action_path = os.path.join(ACTIONS_DIR, action_name)
     if not os.path.isfile(action_path):
         await query.answer(f"Action {action_name} not found.", show_alert=True)
@@ -353,6 +448,32 @@ async def dispatch_action(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 
 # ---------------------------------------------------------------------------
+# Menu button handler
+# ---------------------------------------------------------------------------
+
+async def handle_menu_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Map ReplyKeyboardMarkup button text to commands."""
+    if not is_authorized(update):
+        await handle_unauthorized(update, context)
+        return
+
+    text = update.message.text
+    mapping = {
+        "📊 Status":   "/status",
+        "🌐 WiFi":     "/wifi_list",
+        "🛡️ Firewall": "/fw_list",
+        "🛠️ Help":     "/help",
+    }
+
+    if text in mapping:
+        # Simulate the command
+        update.message.text = mapping[text]
+        await dispatch_plugin(update, context)
+    else:
+        await unknown_text(update, context)
+
+
+# ---------------------------------------------------------------------------
 # Unknown non-command text
 # ---------------------------------------------------------------------------
 
@@ -373,15 +494,27 @@ async def unknown_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 # ---------------------------------------------------------------------------
 
 async def post_init(application) -> None:
-    """Send a startup message to the owner after the bot connects."""
+    """Send a startup message to the owner and set bot commands."""
     try:
+        # 1. Set bot commands for the menu button
+        commands = [
+            BotCommand("start",  "Start the bot & show menu"),
+            BotCommand("help",   "List all available commands"),
+            BotCommand("status", "Show router status (CPU, RAM, etc)"),
+            BotCommand("wifi_list", "Manage WiFi networks"),
+            BotCommand("fw_list", "Manage Firewall rules"),
+        ]
+        await application.bot.set_my_commands(commands)
+
+        # 2. Notify the owner
         await application.bot.send_message(
             chat_id=CFG["my_chat_id"],
             text="✅ *WrtGram bot started!*\nSend /help to see what I can do.",
             parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_main_menu_keyboard()
         )
     except Exception as exc:
-        logger.warning("Startup message failed: %s", exc)
+        logger.warning("post_init failed: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -415,8 +548,8 @@ def main() -> None:
     # Inline keyboard callbacks
     app.add_handler(CallbackQueryHandler(dispatch_action))
 
-    # Non-command text
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown_text))
+    # Menu buttons and other text
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_menu_buttons))
 
     # Start polling (drop updates older than bot start time)
     app.run_polling(drop_pending_updates=True)
