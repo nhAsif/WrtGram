@@ -7,6 +7,7 @@ WrtGram provides a simple yet powerful way to interact with your OpenWrt router 
 ## Features
 
 *   **Asynchronous Python Bot:** Built with `python-telegram-bot` (v20+) for high-performance, non-blocking interaction.
+*   **🤖 AI Assistant (Powered by OpenRouter):** Integrated LLM that can answer questions, execute shell commands, and even write new plugins dynamically.
 *   **Extensible Plugin Architecture:** Easily add new functionality by creating simple shell or Python scripts.
 *   **Interactive Inline Keyboards:** Direct router control through native Telegram buttons (no more external context scripts).
 *   **System Monitoring:** Get notified about LAN port status changes, DHCP leases, and more via async background daemons.
@@ -58,7 +59,11 @@ When a command is received from an authorized user, the bot executes a correspon
     config wrtgram 'global'
         option key '<YOUR BOT TOKEN>'
         option my_chat_id '<YOUR CHAT ID>'
+        option openrouter_key '<YOUR OPENROUTER API KEY>'
+        option openrouter_model 'meta-llama/llama-3.1-8b-instruct:free'
     ```
+
+    *Note: You can get an API key from [OpenRouter.ai](https://openrouter.ai/).*
 
 5.  **Enable and Start the Services:**
     Run the following commands to enable and start the services:
@@ -78,6 +83,7 @@ Plugins are scripts located in the `/usr/lib/wrtgram/plugins/` directory. Both S
 
 The following commands are included by default:
 
+*   `/ai <prompt>`: Ask the AI assistant to help you with information, execute tasks, or even write new plugins.
 *   `/cf_tunnel [port]`: Creates a temporary Cloudflare tunnel (defaults to 80).
 *   `/cf_tunnel_stop`: Stops the running Cloudflare tunnel.
 *   `/fw_add <hostname> [time]`: Blocks a hostname in the firewall.
