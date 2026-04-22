@@ -12,6 +12,7 @@ sys.path.insert(0, "/usr/lib/wrtgram")
 
 import json
 import urllib.request
+import urllib.error
 import logging
 from wrtgramlib import get_config, get_plugins_context, subprocess_cmd
 
@@ -72,8 +73,17 @@ def ask_ai(prompt):
                 return res['choices'][0]['message']['content']
             else:
                 return f"❌ Unexpected response from OpenRouter: {json.dumps(res)}"
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode()
+        try:
+            error_json = json.loads(error_body)
+            error_msg = error_json.get("error", {}).get("message", error_body)
+        except:
+            error_msg = error_body
+        return f"❌ OpenRouter API Error ({e.code}): {error_msg}"
     except Exception as e:
-        return f"❌ OpenRouter API Error: {str(e)}"
+        return f"❌ AI Error: {str(e)}"
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
