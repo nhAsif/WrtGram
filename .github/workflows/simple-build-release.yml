@@ -12,6 +12,9 @@ on:
   workflow_dispatch:
   pull_request:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   prepare:
     runs-on: ubuntu-latest
@@ -21,7 +24,7 @@ jobs:
       sha: ${{ steps.gh.outputs.sha }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: GH
         id: gh
@@ -69,7 +72,10 @@ jobs:
       options: --user root
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
+      - name: Fix git safe directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Convert line endings to Unix format
         run: |
@@ -171,7 +177,7 @@ jobs:
 
       - name: Upload packages
         if: steps.build.outcome == 'success'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wrtgram-${{ matrix.branch }}-${{ matrix.arch }}
           path: /builder/wrtgram*.ipk
@@ -185,7 +191,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
 
       - name: Create package repository
         run: |
