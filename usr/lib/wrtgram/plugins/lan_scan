@@ -1,96 +1,113 @@
-#!/bin/sh
+#!/usr/bin/env python3
+"""
+lan_scan.py – Async LAN scan plugin (replaces shell plugins/lan_scan)
 
-echo "🌐 *LAN Device Status*"
-echo "Scanning the LAN for active hosts... (this may take a minute)"
-echo ""
+Parallel-pings the full /24 subnet, cross-references /tmp/dhcp.leases
+and /proc/net/arp, then prints active and inactive hosts.
+"""
 
-# Get LAN IP and construct network prefix. This assumes a /24 subnet.
-LAN_IP=$(uci get network.lan.ipaddr)
-if [ -z "$LAN_IP" ]; then
-    echo "Could not determine LAN IP address."
-    exit 1
-fi
-PREFIX=$(echo "$LAN_IP" | cut -d. -f1-3)
+import asyncio
+import subprocess
+import sys
 
-# Temporary file for active hosts
-ACTIVE_HOSTS_FILE=$(mktemp)
 
-# Ping all possible hosts in the background
-# This scans the .1 to .254 range of the current subnet.
-# It assumes a /24 subnet (e.g., 192.168.1.x), which is common for LANs.
-for i in $(seq 1 254); do
-    IP_ADDRESS="$PREFIX.$i"
-    # ping with 1 packet, 1 second timeout. If successful, add to file.
-    (ping -c 1 -w 1 "$IP_ADDRESS" > /dev/null && echo "$IP_ADDRESS" >> "$ACTIVE_HOSTS_FILE") &
-done
+def _get_lan_prefix() -> str:
+    r = subprocess.run(
+        ["uci", "get", "network.lan.ipaddr"],
+        capture_output=True, text=True,
+    )
+    ip = r.stdout.strip()
+    if not ip:
+        print("Could not determine LAN IP.")
+        sys.exit(1)
+    return ".".join(ip.split(".")[:3])
 
-# Wait for all pings to finish
-wait
 
-if [ ! -s "$ACTIVE_HOSTS_FILE" ] && [ ! -s /tmp/dhcp.leases ]; then
-    echo "No active hosts found and no DHCP leases to check."
-    rm -f "$ACTIVE_HOSTS_FILE"
-    exit 0
-fi
+def _read_leases() -> dict[str, tuple[str, str]]:
+    """Return {ip: (mac, hostname)} from /tmp/dhcp.leases."""
+    leases: dict[str, tuple[str, str]] = {}
+    try:
+        with open("/tmp/dhcp.leases") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 4:
+                    _, mac, ip, hostname = parts[0], parts[1], parts[2], parts[3]
+                    leases[ip] = (mac.upper(), hostname if hostname != "*" else "Unknown")
+    except FileNotFoundError:
+        pass
+    return leases
 
-# Section for Active Hosts
-echo "🟢 *Active Hosts*"
-if [ -s "$ACTIVE_HOSTS_FILE" ]; then
-    # Sort the IPs for clean output
-    sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n "$ACTIVE_HOSTS_FILE" | while read -r IP_ADDRESS; do
-        # Try to find hostname in dhcp.leases
-        HOSTNAME=$(grep -w "$IP_ADDRESS" /tmp/dhcp.leases | awk '{print $4}')
-        
-        if [ -z "$HOSTNAME" ] || [ "$HOSTNAME" = "*" ]; then
-            HOSTNAME="Unknown"
-        fi
 
-        # Get MAC address from ARP table
-        MAC_ADDRESS=$(grep -w "$IP_ADDRESS" /proc/net/arp | awk '{print $4}' | tr '[:lower:]' '[:upper:]')
-        if [ -z "$MAC_ADDRESS" ]; then
-            MAC_ADDRESS="N/A"
-        fi
+def _read_arp() -> dict[str, str]:
+    """Return {ip: mac} from /proc/net/arp."""
+    arp: dict[str, str] = {}
+    try:
+        with open("/proc/net/arp") as f:
+            next(f)  # header
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 4 and parts[3] != "00:00:00:00:00:00":
+                    arp[parts[0]] = parts[3].upper()
+    except Exception:
+        pass
+    return arp
 
-        echo "🟢 *$HOSTNAME* ($IP_ADDRESS) ($MAC_ADDRESS) is Up"
-    done
-else
-    echo "No active hosts responded to ping."
-fi
 
-echo ""
+async def _ping(ip: str) -> bool:
+    proc = await asyncio.create_subprocess_exec(
+        "ping", "-c", "1", "-w", "1", ip,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    await proc.wait()
+    return proc.returncode == 0
 
-# Section for Inactive Hosts that have a DHCP lease
-echo "🔴 *Inactive Hosts (from DHCP leases)*"
-INACTIVE_IPS_FILE=$(mktemp)
 
-if [ -s /tmp/dhcp.leases ]; then
-    while read -r lease; do
-        IP_ADDRESS=$(echo "$lease" | awk '{print $3}')
-        if ! grep -q -w "$IP_ADDRESS" "$ACTIVE_HOSTS_FILE"; then
-            echo "$IP_ADDRESS" >> "$INACTIVE_IPS_FILE"
-        fi
-    done < /tmp/dhcp.leases
+async def _scan_all(prefix: str) -> set[str]:
+    """Ping all .1–.254 addresses in parallel, return set of live IPs."""
+    results = await asyncio.gather(
+        *[_ping(f"{prefix}.{i}") for i in range(1, 255)]
+    )
+    return {f"{prefix}.{i}" for i, up in enumerate(results, 1) if up}
 
-    if [ -s "$INACTIVE_IPS_FILE" ]; then
-        sort -t . -k 1,1n -k 2,2n -k 3,3n -k 4,4n "$INACTIVE_IPS_FILE" | while read -r IP_ADDRESS; do
-            HOSTNAME=$(grep -w "$IP_ADDRESS" /tmp/dhcp.leases | awk '{print $4}')
-            MAC_ADDRESS=$(grep -w "$IP_ADDRESS" /tmp/dhcp.leases | awk '{print $2}' | tr '[:lower:]' '[:upper:]')
-            
-            if [ -z "$HOSTNAME" ] || [ "$HOSTNAME" = "*" ]; then
-                HOSTNAME="Unknown"
-            fi
-            if [ -z "$MAC_ADDRESS" ]; then
-                MAC_ADDRESS="N/A"
-            fi
-            echo "🔴 *$HOSTNAME* ($IP_ADDRESS) ($MAC_ADDRESS) is Down"
-        done
-    else
-        echo "All hosts with DHCP leases are active."
-    fi
-else
-    echo "No DHCP leases found to check for inactive hosts."
-fi
 
-# Cleanup
-rm -f "$INACTIVE_IPS_FILE"
-rm -f "$ACTIVE_HOSTS_FILE"
+async def main_async() -> None:
+    prefix = _get_lan_prefix()
+    leases = _read_leases()
+    arp    = _read_arp()
+
+    print("🌐 *LAN Device Status*")
+    print("_Scanning the LAN… (this may take a moment)_\n")
+
+    alive = await _scan_all(prefix)
+
+    # ── Active hosts ─────────────────────────────────────────────────────
+    print("🟢 *Active Hosts*")
+    if alive:
+        for ip in sorted(alive, key=lambda x: [int(n) for n in x.split(".")]):
+            hostname = leases.get(ip, (arp.get(ip, "N/A"), "Unknown"))[1]
+            mac      = arp.get(ip) or leases.get(ip, ("N/A",))[0]
+            print(f"  🟢 *{hostname}*  `{ip}`  `{mac}`")
+    else:
+        print("  _No active hosts responded to ping._")
+
+    print()
+
+    # ── Inactive hosts (have a lease but didn't respond) ─────────────────
+    print("🔴 *Inactive Hosts (from DHCP leases)*")
+    inactive = [ip for ip in leases if ip not in alive]
+    if inactive:
+        for ip in sorted(inactive, key=lambda x: [int(n) for n in x.split(".")]):
+            hostname = leases[ip][1]
+            mac      = leases[ip][0]
+            print(f"  🔴 *{hostname}*  `{ip}`  `{mac}`")
+    else:
+        print("  _All hosts with DHCP leases are currently active._")
+
+
+def main() -> None:
+    asyncio.run(main_async())
+
+
+if __name__ == "__main__":
+    main()

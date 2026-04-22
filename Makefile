@@ -15,7 +15,6 @@ define Package/wrtgram
   TITLE:=Telegram BOT for openwrt
   URL:=https://github.com/nhAsif/WrtGram
   PKGARCH:=all
-  TITLE:=Telegram for openwrt BOT
 endef
 
 define Package/wrtgram/description
@@ -59,133 +58,35 @@ define Package/wrtgram/install
 		$(1)/usr/lib/wrtgram
 
 	$(INSTALL_DIR) $(1)/usr/lib/wrtgram/plugins/actions
-	$(INSTALL_BIN) ./usr/lib/wrtgram/plugins/actions/fwr_disable \
-				./usr/lib/wrtgram/plugins/actions/fw_delete \
-				./usr/lib/wrtgram/plugins/actions/proc_stop \
-				./usr/lib/wrtgram/plugins/actions/fwr_enable \
-				./usr/lib/wrtgram/plugins/actions/fw_disable \
-				./usr/lib/wrtgram/plugins/actions/wifi_disable \
-				./usr/lib/wrtgram/plugins/actions/wifi_restart \
-				./usr/lib/wrtgram/plugins/actions/proc_restart \
-				./usr/lib/wrtgram/plugins/actions/wifi_enable \
-				./usr/lib/wrtgram/plugins/actions/proc_start \
-				./usr/lib/wrtgram/plugins/actions/fw_enable \
-				./usr/lib/wrtgram/plugins/actions/interface_down \
-        		./usr/lib/wrtgram/plugins/actions/interface_restart \
-        		./usr/lib/wrtgram/plugins/actions/interface_up \
-		$(1)/usr/lib/wrtgram/plugins/actions
-	
-	$(INSTALL_DIR) $(1)/usr/lib/wrtgram/plugins/ctx
-	$(INSTALL_BIN) ./usr/lib/wrtgram/plugins/ctx/wifi_list \
-				./usr/lib/wrtgram/plugins/ctx/fwr_list \
-				./usr/lib/wrtgram/plugins/ctx/service_list \
-				./usr/lib/wrtgram/plugins/ctx/reboot \
-				./usr/lib/wrtgram/plugins/ctx/fw_list \
-				./usr/lib/wrtgram/plugins/ctx/interfaces_list \
-		$(1)/usr/lib/wrtgram/plugins/ctx
+	$(INSTALL_BIN) ./usr/lib/wrtgram/plugins/actions/* $(1)/usr/lib/wrtgram/plugins/actions/
 	
 	$(INSTALL_DIR) $(1)/usr/lib/wrtgram/plugins/help
-	$(INSTALL_DATA) ./usr/lib/wrtgram/plugins/help/fw_unblock \
-				./usr/lib/wrtgram/plugins/help/fw_add \
-				./usr/lib/wrtgram/plugins/help/fwr_disable \
-				./usr/lib/wrtgram/plugins/help/wifi_list \
-				./usr/lib/wrtgram/plugins/help/swports_list \
-				./usr/lib/wrtgram/plugins/help/fwr_list \
-				./usr/lib/wrtgram/plugins/help/fw_delete \
-				./usr/lib/wrtgram/plugins/help/get_mac \
-				./usr/lib/wrtgram/plugins/help/proc_stop \
-				./usr/lib/wrtgram/plugins/help/proc_list \
-				./usr/lib/wrtgram/plugins/help/get_uptime \
-				./usr/lib/wrtgram/plugins/help/fwr_enable \
-				./usr/lib/wrtgram/plugins/help/wll_list \
-				./usr/lib/wrtgram/plugins/help/start \
-				./usr/lib/wrtgram/plugins/help/ignoredmac_list \
-				./usr/lib/wrtgram/plugins/help/fw_disable \
-				./usr/lib/wrtgram/plugins/help/wifi_disable \
-				./usr/lib/wrtgram/plugins/help/wifi_restart \
-				./usr/lib/wrtgram/plugins/help/proc_restart \
-				./usr/lib/wrtgram/plugins/help/reboot \
-				./usr/lib/wrtgram/plugins/help/wifi_enable \
-				./usr/lib/wrtgram/plugins/help/get_ip \
-				./usr/lib/wrtgram/plugins/help/get_ping \
-				./usr/lib/wrtgram/plugins/help/fw_list \
-				./usr/lib/wrtgram/plugins/help/proc_start \
-				./usr/lib/wrtgram/plugins/help/ignoredmac_add \
-				./usr/lib/wrtgram/plugins/help/fw_enable \
-				./usr/lib/wrtgram/plugins/help/hst_list \
-				./usr/lib/wrtgram/plugins/help/netstat \
-				./usr/lib/wrtgram/plugins/help/tmate \
-				./usr/lib/wrtgram/plugins/help/interface_restart \
-				./usr/lib/wrtgram/plugins/help/interface_up \
-				./usr/lib/wrtgram/plugins/help/interface_down \
-        		./usr/lib/wrtgram/plugins/help/interfaces_list \
-        		./usr/lib/wrtgram/plugins/help/opkg_install \
-        		./usr/lib/wrtgram/plugins/help/opkg_update \
-				./usr/lib/wrtgram/plugins/help/status \
-				./usr/lib/wrtgram/plugins/help/cf_tunnel \
-				./usr/lib/wrtgram/plugins/help/cf_tunnel_stop \
-				./usr/lib/wrtgram/plugins/help/lan_scan \
-		$(1)/usr/lib/wrtgram/plugins/help
+	$(INSTALL_DATA) ./usr/lib/wrtgram/plugins/help/* $(1)/usr/lib/wrtgram/plugins/help/
 
 	$(INSTALL_DIR) $(1)/usr/lib/wrtgram/plugins
-	$(INSTALL_BIN) ./usr/lib/wrtgram/plugins/fw_unblock \
-				./usr/lib/wrtgram/plugins/fw_add \
-				./usr/lib/wrtgram/plugins/fwr_disable \
-				./usr/lib/wrtgram/plugins/wifi_list \
-				./usr/lib/wrtgram/plugins/swports_list \
-				./usr/lib/wrtgram/plugins/fwr_list \
-				./usr/lib/wrtgram/plugins/fw_delete \
-				./usr/lib/wrtgram/plugins/get_mac \
-				./usr/lib/wrtgram/plugins/proc_stop \
-				./usr/lib/wrtgram/plugins/proc_list \
-				./usr/lib/wrtgram/plugins/get_uptime \
-				./usr/lib/wrtgram/plugins/fwr_enable \
-				./usr/lib/wrtgram/plugins/wll_list \
-				./usr/lib/wrtgram/plugins/start \
-				./usr/lib/wrtgram/plugins/ignoredmac_list \
-				./usr/lib/wrtgram/plugins/fw_disable \
-				./usr/lib/wrtgram/plugins/wifi_disable \
-				./usr/lib/wrtgram/plugins/wifi_restart \
-				./usr/lib/wrtgram/plugins/proc_restart \
-				./usr/lib/wrtgram/plugins/reboot \
-				./usr/lib/wrtgram/plugins/wifi_enable \
-				./usr/lib/wrtgram/plugins/get_ip \
-				./usr/lib/wrtgram/plugins/get_ping \
-				./usr/lib/wrtgram/plugins/fw_list \
-				./usr/lib/wrtgram/plugins/proc_start \
-				./usr/lib/wrtgram/plugins/ignoredmac_add \
-				./usr/lib/wrtgram/plugins/fw_enable \
-				./usr/lib/wrtgram/plugins/hst_list \
-				./usr/lib/wrtgram/plugins/netstat \
-				./usr/lib/wrtgram/plugins/tmate \
-				./usr/lib/wrtgram/plugins/interface_down \
-        		./usr/lib/wrtgram/plugins/interface_restart \
-        		./usr/lib/wrtgram/plugins/interface_up \
-        		./usr/lib/wrtgram/plugins/interfaces_list \
-        		./usr/lib/wrtgram/plugins/opkg_install \
-        		./usr/lib/wrtgram/plugins/opkg_update \
-				./usr/lib/wrtgram/plugins/status \
-				./usr/lib/wrtgram/plugins/status.py \
-				./usr/lib/wrtgram/plugins/cf_tunnel \
-				./usr/lib/wrtgram/plugins/cf_tunnel_stop \
+	$(INSTALL_BIN) ./usr/lib/wrtgram/plugins/fw* \
+				./usr/lib/wrtgram/plugins/get* \
+				./usr/lib/wrtgram/plugins/hst* \
+				./usr/lib/wrtgram/plugins/ignoredmac* \
+				./usr/lib/wrtgram/plugins/interface* \
 				./usr/lib/wrtgram/plugins/lan_scan \
-				./usr/lib/wrtgram/plugins/lan_scan.py \
-				./usr/lib/wrtgram/plugins/interfaces_list.py \
-				./usr/lib/wrtgram/plugins/fw_list.py \
-				./usr/lib/wrtgram/plugins/wifi_list.py \
+				./usr/lib/wrtgram/plugins/netstat \
+				./usr/lib/wrtgram/plugins/opkg* \
+				./usr/lib/wrtgram/plugins/proc* \
+				./usr/lib/wrtgram/plugins/reboot \
+				./usr/lib/wrtgram/plugins/start \
+				./usr/lib/wrtgram/plugins/status \
+				./usr/lib/wrtgram/plugins/swports_list \
+				./usr/lib/wrtgram/plugins/tmate \
+				./usr/lib/wrtgram/plugins/wifi* \
+				./usr/lib/wrtgram/plugins/wll_list \
+				./usr/lib/wrtgram/plugins/cf_tunnel* \
 		$(1)/usr/lib/wrtgram/plugins
 
 	$(INSTALL_DIR) $(1)/sbin
 	$(INSTALL_BIN) ./sbin/bot.py \
 				./sbin/hosts_scan.py \
 				./sbin/lanports.py \
-				./sbin/telebot \
-				./sbin/telegram_bot \
-				./sbin/telekeyboard \
-				./sbin/hosts_scan \
-				./sbin/typing \
-				./sbin/telegram_sender \
-				./sbin/lanports \
 		$(1)/sbin/
 endef
 
