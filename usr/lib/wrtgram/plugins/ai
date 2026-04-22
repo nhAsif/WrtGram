@@ -5,6 +5,11 @@ Calls OpenRouter and allows direct router management via [EXEC: command] tags.
 """
 
 import sys
+import os
+
+# Allow importing wrtgramlib from its installed location
+sys.path.insert(0, "/usr/lib/wrtgram")
+
 import json
 import urllib.request
 import logging
