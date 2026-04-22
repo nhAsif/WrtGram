@@ -470,7 +470,9 @@ async def handle_menu_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
         "🛠️ Help":     "/help",
     }
 
-    if text in mapping:
+    if text == "🛠️ Help":
+        await cmd_help(update, context)
+    elif text in mapping:
         # Pass the mapped command explicitly
         await dispatch_plugin(update, context, command=mapping[text])
     else:
