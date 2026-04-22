@@ -326,16 +326,21 @@ _KEYBOARD_COMMANDS: dict = {
 # Generic plugin dispatcher
 # ---------------------------------------------------------------------------
 
-async def dispatch_plugin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def dispatch_plugin(update: Update, context: ContextTypes.DEFAULT_TYPE, command: str = None) -> None:
     """Route any slash-command to its plugin script."""
     if not is_authorized(update):
         await handle_unauthorized(update, context)
         return
 
-    text   = update.message.text or ""
-    parts  = text.split(None, 1)
-    cmd    = parts[0].lower().split("@")[0]   # strip /cmd@botname
-    params = parts[1].strip() if len(parts) > 1 else ""
+    if command:
+        cmd = command
+        params = ""
+    else:
+        text   = update.message.text or ""
+        parts  = text.split(None, 1)
+        cmd    = parts[0].lower().split("@")[0]   # strip /cmd@botname
+        params = parts[1].strip() if len(parts) > 1 else ""
+    
     # Sanitise params (strip shell-dangerous chars)
     params = "".join(c for c in params if c not in '&;\\><|"\'')
 
@@ -466,9 +471,8 @@ async def handle_menu_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
     }
 
     if text in mapping:
-        # Simulate the command
-        update.message.text = mapping[text]
-        await dispatch_plugin(update, context)
+        # Pass the mapped command explicitly
+        await dispatch_plugin(update, context, command=mapping[text])
     else:
         await unknown_text(update, context)
 
