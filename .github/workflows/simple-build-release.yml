@@ -71,11 +71,14 @@ jobs:
       image: openwrt/sdk:${{ matrix.arch }}-${{ matrix.branch }}
       options: --user root
     steps:
+      - name: Fix git safe directory
+        run: |
+          # The SDK container might have git ownership issues with the mapped workspace
+          # We set it to * to avoid any "dubious ownership" errors
+          git config --global --add safe.directory '*'
+
       - name: Checkout
         uses: actions/checkout@v6
-
-      - name: Fix git safe directory
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Convert line endings to Unix format
         run: |
