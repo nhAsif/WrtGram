@@ -376,27 +376,56 @@ async def dispatch_plugin(update: Update, context: ContextTypes.DEFAULT_TYPE, co
     except Exception:
         pass
 
-    # Special handling for AI command: parse and execute [EXEC: command] tags
-    if cmd == "/ai" and "[EXEC:" in result:
-        # Send the AI's explanation first
-        await send_message(context.bot, update.effective_chat.id, result)
+    # Special handling for AI command: parse and execute tags
+    if cmd == "/ai":
+        # 1. Handle Plugin Creation
+        plugin_matches = re.findall(r"\[CREATE_PLUGIN:\s*(\w+)\](.*?)\[/CREATE_PLUGIN\]", result, re.DOTALL)
+        for p_name, p_content in plugin_matches:
+            p_path = os.path.join(PLUGINS_DIR, p_name)
+            try:
+                with open(p_path, "w") as f:
+                    f.write(p_content.strip())
+                os.chmod(p_path, 0o755)
+                await send_message(context.bot, update.effective_chat.id, f"✅ *Plugin Created:* `/{p_name}`")
+            except Exception as e:
+                await send_message(context.bot, update.effective_chat.id, f"❌ *Error creating plugin {p_name}:* {e}")
+
+        # 2. Handle Help File Creation
+        help_matches = re.findall(r"\[CREATE_HELP:\s*(\w+)\](.*?)\[/CREATE_HELP\]", result, re.DOTALL)
+        for h_name, h_content in help_matches:
+            h_path = os.path.join(HELP_DIR, h_name)
+            try:
+                with open(h_path, "w") as f:
+                    f.write(h_content.strip())
+            except Exception as e:
+                logger.error("Error creating help for %s: %s", h_name, e)
+
+        # 3. Handle Execution tags (existing logic)
+        if "[EXEC:" in result:
+            # Send the AI's explanation first
+            await send_message(context.bot, update.effective_chat.id, result)
+            
+            # Extract and run commands
+            commands = re.findall(r"\[EXEC:\s*(.*?)\]", result)
+            for c in commands:
+                c = c.strip()
+                # If it's a plugin, run it via run_plugin, otherwise use subprocess_cmd
+                plugin_name = c.split()[0]
+                full_plugin_path = os.path.join(PLUGINS_DIR, plugin_name)
+                
+                await send_message(context.bot, update.effective_chat.id, f"🛠 *Executing:* `{c}`")
+                
+                if os.path.isfile(full_plugin_path):
+                    exec_result = run_plugin(full_plugin_path, " ".join(c.split()[1:]))
+                else:
+                    exec_result = subprocess_cmd(c.split())
+                
+                await send_message(context.bot, update.effective_chat.id, exec_result or "_(done)_")
+            return
         
-        # Extract and run commands
-        commands = re.findall(r"\[EXEC:\s*(.*?)\]", result)
-        for c in commands:
-            c = c.strip()
-            # If it's a plugin, run it via run_plugin, otherwise use subprocess_cmd
-            plugin_name = c.split()[0]
-            full_plugin_path = os.path.join(PLUGINS_DIR, plugin_name)
-            
-            await send_message(context.bot, update.effective_chat.id, f"🛠 *Executing:* `{c}`")
-            
-            if os.path.isfile(full_plugin_path):
-                exec_result = run_plugin(full_plugin_path, " ".join(c.split()[1:]))
-            else:
-                exec_result = subprocess_cmd(c.split())
-            
-            await send_message(context.bot, update.effective_chat.id, exec_result or "_(done)_")
+        # If no execution tags but we had a result, send it
+        if result:
+            await send_message(context.bot, update.effective_chat.id, result)
         return
 
     # Send the actual result (supports chunking via send_message)
