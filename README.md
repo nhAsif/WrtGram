@@ -30,7 +30,7 @@ When a command is received from an authorized user, the bot executes a correspon
 
 *   An OpenWrt router with Python 3 installed.
 *   A Telegram account.
-*   The `python-telegram-bot` library.
+*   The `python-telegram-bot` and `google-genai` (optional, for Gemini) libraries.
 
 ### Installation and Configuration
 
@@ -49,7 +49,7 @@ When a command is received from an authorized user, the bot executes a correspon
 
     ```bash
     opkg update && opkg install python3-pip
-    pip3 install python-telegram-bot
+    pip3 install python-telegram-bot google-genai
     ```
 
 4.  **Configure the Bot:**
