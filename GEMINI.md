@@ -8,7 +8,7 @@ WrtGram is a powerful, extensible Telegram bot designed specifically for managin
 *   **Monitoring Services:**
     *   `lanports.py`: Monitors router logs for LAN port status changes and DHCP leases.
     *   `hosts_scan.py`: Periodically scans the network for new devices and sends notifications.
-*   **Clean Architecture:** Version 4.0 uses a consolidated Python-centric architecture, removing legacy shell wrappers and redundant context scripts.
+*   **Clean Architecture:** Version 4.1 uses a consolidated Python-centric architecture, removing legacy shell wrappers and redundant context scripts.
 *   **Technologies:** Python 3, Shell Scripting, OpenWrt UCI (Unified Configuration Interface), `ubus`, `curl`, and `jsonfilter`.
 
 ## Building and Running
@@ -23,7 +23,7 @@ make package/wrtgram/compile V=s
 ### Installation
 Transfer the generated `.ipk` file to your router and install it:
 ```bash
-opkg install wrtgram_4.0-1_all.ipk
+opkg install wrtgram_4.1-1_all.ipk
 ```
 
 ### Service Management
