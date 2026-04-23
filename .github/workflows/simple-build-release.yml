@@ -141,7 +141,7 @@ jobs:
         with:
           configurationJson: |
             {
-              "template": "# Changelog\n\n${{CHANGELOG}}",
+              "template": "# Changelog\n\n${{ '{{' }}CHANGELOG}}",
               "categories": [
                 {
                   "title": "## 🚀 Features",
