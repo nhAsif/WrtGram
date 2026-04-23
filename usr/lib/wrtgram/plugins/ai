@@ -22,11 +22,7 @@ logger = logging.getLogger("ai_plugin")
 
 def ask_ai(prompt):
     cfg = get_config()
-    api_key = cfg.get("openrouter_key")
-    model = cfg.get("openrouter_model")
-
-    if not api_key:
-        return "❌ OpenRouter API key not configured in UCI (wrtgram.global.openrouter_key)."
+    provider = cfg.get("ai_provider", "openrouter").lower()
 
     # Gather system context
     plugins_context = get_plugins_context()
@@ -50,6 +46,34 @@ def ask_ai(prompt):
         "4. You can create a plugin and then immediately execute it in the same response.\n"
         "5. Be concise. Explain your actions clearly.\n"
     )
+
+    if provider == "gemini":
+        gemini_key = cfg.get("gemini_key")
+        gemini_model = cfg.get("gemini_model", "gemini-3-flash-preview")
+
+        if not gemini_key or "[PUT YOUR GEMINI API KEY HERE]" in gemini_key:
+            return "❌ Gemini API key not configured in UCI (wrtgram.global.gemini_key)."
+
+        try:
+            from google import genai
+            client = genai.Client(api_key=gemini_key)
+            response = client.models.generate_content(
+                model=gemini_model,
+                contents=prompt,
+                config={"system_instruction": system_instruction}
+            )
+            return response.text
+        except ImportError:
+            return "❌ Missing 'google-genai' library. Please install it (e.g. `pip install google-genai`)."
+        except Exception as e:
+            return f"❌ Gemini API Error: {str(e)}"
+
+    # Default to OpenRouter
+    api_key = cfg.get("openrouter_key")
+    model = cfg.get("openrouter_model")
+
+    if not api_key or "[PUT YOUR OPENROUTER API KEY HERE]" in api_key:
+        return "❌ OpenRouter API key not configured in UCI (wrtgram.global.openrouter_key)."
 
     data = json.dumps({
         "model": model,

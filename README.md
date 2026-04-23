@@ -7,7 +7,7 @@ WrtGram provides a simple yet powerful way to interact with your OpenWrt router 
 ## Features
 
 *   **Asynchronous Python Bot:** Built with `python-telegram-bot` (v20+) for high-performance, non-blocking interaction.
-*   **🤖 AI Assistant (Powered by OpenRouter):** Integrated LLM that can answer questions, execute shell commands, and even write new plugins dynamically.
+*   **🤖 AI Assistant (Powered by OpenRouter & Gemini):** Integrated LLM that can answer questions, execute shell commands, and even write new plugins dynamically. Supports both OpenRouter and Google Gemini.
 *   **Extensible Plugin Architecture:** Easily add new functionality by creating simple shell or Python scripts.
 *   **Interactive Inline Keyboards:** Direct router control through native Telegram buttons (no more external context scripts).
 *   **System Monitoring:** Get notified about LAN port status changes, DHCP leases, and more via async background daemons.
@@ -59,8 +59,11 @@ When a command is received from an authorized user, the bot executes a correspon
     config wrtgram 'global'
         option key '<YOUR BOT TOKEN>'
         option my_chat_id '<YOUR CHAT ID>'
+        option ai_provider 'openrouter'
         option openrouter_key '<YOUR OPENROUTER API KEY>'
         option openrouter_model 'meta-llama/llama-3.1-8b-instruct:free'
+        option gemini_key '<YOUR GEMINI API KEY>'
+        option gemini_model 'gemini-3-flash-preview'
     ```
 
     *Note: You can get an API key from [OpenRouter.ai](https://openrouter.ai/).*
