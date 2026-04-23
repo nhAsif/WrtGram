@@ -66,7 +66,7 @@ When a command is received from an authorized user, the bot executes a correspon
         option gemini_model 'gemini-3-flash-preview'
     ```
 
-    *Note: You can get an API key from [OpenRouter.ai](https://openrouter.ai/).*
+    *Note: You can get an API key from [OpenRouter.ai](https://openrouter.ai/) or [Google AI Studio](https://aistudio.google.com/api-keys) for Gemini.*
 
 5.  **Enable and Start the Services:**
     Run the following commands to enable and start the services:
