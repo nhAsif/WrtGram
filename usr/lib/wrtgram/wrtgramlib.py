@@ -35,7 +35,8 @@ def _uci(key: str) -> str:
 def get_config() -> dict:
     """Return WrtGram config as a dict with keys:
     key, url, api, my_chat_id, timeout, ignored_macaddrs_file,
-    smtp_from, smtp_to, openrouter_key, openrouter_model.
+    smtp_from, smtp_to, openrouter_key, openrouter_model,
+    ai_provider, gemini_key, gemini_model.
     """
     url = _uci("wrtgram.global.url")
     key = _uci("wrtgram.global.key")
@@ -50,6 +51,9 @@ def get_config() -> dict:
         "smtp_to": _uci("wrtgram.smtp.to"),
         "openrouter_key": _uci("wrtgram.global.openrouter_key"),
         "openrouter_model": _uci("wrtgram.global.openrouter_model") or "meta-llama/llama-3.1-8b-instruct:free",
+        "ai_provider": _uci("wrtgram.global.ai_provider") or "openrouter",
+        "gemini_key": _uci("wrtgram.global.gemini_key"),
+        "gemini_model": _uci("wrtgram.global.gemini_model") or "gemini-3-flash-preview",
     }
 
 
