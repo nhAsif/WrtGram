@@ -133,87 +133,12 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Generate Changelog
-        id: changelog
-        uses: mikepenz/release-changelog-builder-action@v5
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          configurationJson: |
-            {
-              "mode": "COMMIT",
-              "template": "# Changelog\n\n${{ '{{' }}CHANGELOG}}",
-              "categories": [
-                {
-                  "title": "## 🚀 Features",
-                  "labels": ["feat", "feature"],
-                  "patterns": ["feat:.*", "feature:.*"]
-                },
-                {
-                  "title": "## 🐛 Fixes",
-                  "labels": ["fix", "bug"],
-                  "patterns": ["fix:.*", "bug:.*"]
-                },
-                {
-                  "title": "## 📝 Documentation",
-                  "labels": ["docs"],
-                  "patterns": ["docs:.*"]
-                },
-                {
-                  "title": "## ⚙️ Maintenance",
-                  "labels": ["chore", "ci"],
-                  "patterns": ["chore:.*", "ci:.*"]
-                }
-              ],
-              "unmapped_category": {
-                "title": "## 📦 Other Changes"
-              }
-            }
-
-      - name: Create package repository index
-        run: |
-          mkdir -p repo
-          cp artifacts/* repo/
-          cd repo
-          
-          # Create opkg index for ipk
-          # We only have one ipk, but let's make it look like a repo
-          for ipk in *.ipk; do
-            if [ -f "$ipk" ]; then
-              echo "Package: wrtgram"
-              echo "Version: ${{ needs.get-version.outputs.version }}-${{ needs.get-version.outputs.release }}"
-              echo "Architecture: all"
-              echo "Filename: $ipk"
-              echo "Size: $(stat -c%s "$ipk")"
-              echo "SHA256sum: $(sha256sum "$ipk" | cut -d' ' -f1)"
-              echo "Description: Telegram BOT for OpenWrt"
-              echo ""
-            fi
-          done > Packages
-          gzip -c Packages > Packages.gz
-          
-          # Simple HTML index
-          echo '<!DOCTYPE html><html><head><title>WrtGram Repository</title><style>body{font-family:sans-serif;margin:40px;line-height:1.6}pre{background:#f4f4f4;padding:10px;border-radius:5px}</style></head><body>' > index.html
-          echo '<h1>WrtGram Download</h1>' >> index.html
-          echo '<p>Latest version: <b>${{ needs.get-version.outputs.version }}-${{ needs.get-version.outputs.release }}</b></p>' >> index.html
-          echo '<h3>Installation (OpenWrt 23.05 and earlier):</h3>' >> index.html
-          echo '<pre>opkg update\nopkg install <a href="wrtgram_${{ needs.get-version.outputs.version }}-${{ needs.get-version.outputs.release }}_all.ipk">wrtgram_all.ipk</a></pre>' >> index.html
-          echo '<h3>Installation (OpenWrt 25 and later):</h3>' >> index.html
-          echo '<pre>apk add <a href="wrtgram_${{ needs.get-version.outputs.version }}-${{ needs.get-version.outputs.release }}_all.apk">wrtgram_all.apk</a></pre>' >> index.html
-          echo '<h3>All Files:</h3><ul>' >> index.html
-          for f in *; do
-            if [ "$f" != "index.html" ]; then
-              echo "<li><a href=\"$f\">$f</a></li>" >> index.html
-            fi
-          done
-          echo '</ul></body></html>' >> index.html
-
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.get-version.outputs.version }}
           name: WrtGram v${{ needs.get-version.outputs.version }}
-          body: ${{ steps.changelog.outputs.changelog }}
+          generate_release_notes: true
           files: |
             artifacts/*
             repo/Packages
