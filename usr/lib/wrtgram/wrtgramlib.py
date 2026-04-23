@@ -15,6 +15,7 @@ import subprocess
 from typing import Optional
 
 import telegram
+import telegram.error
 
 logger = logging.getLogger("wrtgramlib")
 
@@ -83,7 +84,9 @@ async def send_message(
     parse_mode: str = "Markdown",
     reply_markup=None,
 ) -> None:
-    """Send *text* to *chat_id*, splitting into chunks ≤ 4096 chars."""
+    """Send *text* to *chat_id*, splitting into chunks ≤ 4096 chars.
+    Retries without parse_mode if Markdown parsing fails.
+    """
     if not text or not text.strip():
         return
 
@@ -92,22 +95,39 @@ async def send_message(
     chunk = ""
     for line in lines:
         if len(chunk) + len(line) > MAX_MSG_LEN:
-            await bot.send_message(
-                chat_id=chat_id,
-                text=chunk,
-                parse_mode=parse_mode,
-            )
+            try:
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=chunk,
+                    parse_mode=parse_mode,
+                )
+            except telegram.error.BadRequest as e:
+                logger.warning("Markdown parsing failed, falling back to plain text: %s", e)
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=chunk,
+                    parse_mode=None,
+                )
             chunk = line
         else:
             chunk += line
 
     if chunk.strip():
-        await bot.send_message(
-            chat_id=chat_id,
-            text=chunk,
-            parse_mode=parse_mode,
-            reply_markup=reply_markup,
-        )
+        try:
+            await bot.send_message(
+                chat_id=chat_id,
+                text=chunk,
+                parse_mode=parse_mode,
+                reply_markup=reply_markup,
+            )
+        except telegram.error.BadRequest as e:
+            logger.warning("Markdown parsing failed, falling back to plain text: %s", e)
+            await bot.send_message(
+                chat_id=chat_id,
+                text=chunk,
+                parse_mode=None,
+                reply_markup=reply_markup,
+            )
 
 
 # ---------------------------------------------------------------------------
