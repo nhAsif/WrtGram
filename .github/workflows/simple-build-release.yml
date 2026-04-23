@@ -141,33 +141,33 @@ jobs:
         with:
           configurationJson: |
             {
+              "mode": "COMMIT",
               "template": "# Changelog\n\n${{ '{{' }}CHANGELOG}}",
               "categories": [
                 {
                   "title": "## 🚀 Features",
-                  "labels": ["feat", "feature"]
+                  "labels": ["feat", "feature"],
+                  "patterns": ["feat:.*", "feature:.*"]
                 },
                 {
                   "title": "## 🐛 Fixes",
-                  "labels": ["fix", "bug"]
+                  "labels": ["fix", "bug"],
+                  "patterns": ["fix:.*", "bug:.*"]
                 },
                 {
                   "title": "## 📝 Documentation",
-                  "labels": ["docs"]
-                },
-                {
-                  "title": "## 🛠️ Refactoring",
-                  "labels": ["refactor", "style"]
-                },
-                {
-                  "title": "## 🧪 Testing",
-                  "labels": ["test"]
+                  "labels": ["docs"],
+                  "patterns": ["docs:.*"]
                 },
                 {
                   "title": "## ⚙️ Maintenance",
-                  "labels": ["chore", "ci"]
+                  "labels": ["chore", "ci"],
+                  "patterns": ["chore:.*", "ci:.*"]
                 }
-              ]
+              ],
+              "unmapped_category": {
+                "title": "## 📦 Other Changes"
+              }
             }
 
       - name: Create package repository index
