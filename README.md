@@ -35,14 +35,10 @@ When a command is received from an authorized user, the bot executes a correspon
 ### Installation and Configuration
 
 1.  **Create a Telegram Bot:**
-    Follow the official instructions to create a new bot and obtain your API token: [https://core.telegram.org/bots#creating-a-new-bot](https://core.telegram.org/bots#creating-a-new-bot)
+    Search for [@BotFather](https://t.me/BotFather) on Telegram and send the `/newbot` command. Follow the instructions to name your bot and choose a username. Once completed, you will receive your API token.
 
 2.  **Get your Chat ID:**
-    After creating the bot, send a message to it from your Telegram account. Then, run the following command on your router, replacing `<YOUR BOT TOKEN>` with the token you just obtained:
-
-    ```bash
-    curl -s -k -X GET https://api.telegram.org/bot<YOUR BOT TOKEN>/getUpdates | grep -oE '"id":[[:digit:]]+' | head -n1 | awk -F : '{print $2}'
-    ```
+    Search for [@userinfobot](https://t.me/userinfobot) on Telegram and start it or send it a message. It will reply with your Chat ID (e.g., `123456789`).
 
 3.  **Install Dependencies:**
     Ensure Python 3 is installed and then install the required Telegram library:
