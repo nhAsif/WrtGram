@@ -2,14 +2,8 @@ name: Build and Release WrtGram
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - 'Makefile'
-      - 'etc/**'
-      - 'sbin/**'
-      - 'usr/**'
-      - '.github/workflows/**'
+    tags:
+      - '*'
   workflow_dispatch:
 
 env:
@@ -21,7 +15,6 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       release: ${{ steps.version.outputs.release }}
-      current_version: ${{ steps.current_version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -29,17 +22,14 @@ jobs:
       - name: Get New Version
         id: version
         run: |
-          echo "version=$(grep 'PKG_VERSION:=' Makefile | cut -d'=' -f2 | xargs)" >> $GITHUB_OUTPUT
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"
+          else
+            VERSION="$(grep 'PKG_VERSION:=' Makefile | cut -d'=' -f2 | xargs)"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "release=$(grep 'PKG_RELEASE:=' Makefile | cut -d'=' -f2 | xargs)" >> $GITHUB_OUTPUT
-
-      - name: Get Current Release Version
-        id: current_version
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Try to get the latest release tag
-          LATEST_TAG=$(gh release view --json tagName --template '{{.tagName}}' 2>/dev/null || echo "v0.0.0")
-          echo "version=${LATEST_TAG#v}" >> $GITHUB_OUTPUT
 
   compile:
     needs: get-version
@@ -87,6 +77,10 @@ jobs:
           # Add package source
           mkdir -p package/wrtgram
           cp -r ../Makefile ../etc ../sbin ../usr package/wrtgram/
+          
+          # Update version in Makefile based on tag
+          VERSION="${{ needs.get-version.outputs.version }}"
+          sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=${VERSION}/" package/wrtgram/Makefile
           
           # Fix line endings (OpenWrt build system hates CRLF)
           find package/wrtgram -type f -exec sed -i 's/\r//g' {} +
