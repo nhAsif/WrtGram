@@ -48,7 +48,14 @@ When a command is received from an authorized user, the bot executes a correspon
     pip3 install python-telegram-bot google-genai
     ```
 
-4.  **Configure the Bot:**
+4.  **Install WrtGram:**
+    Grab the latest `.ipk` package link from the [Releases section](https://github.com/nhAsif/WrtGram/releases) and install it on your router:
+
+    ```bash
+    opkg install <LATEST_RELEASE_URL>
+    ```
+
+5.  **Configure the Bot:**
     Open the configuration file `/etc/config/wrtgram` and set your token and chat ID:
 
     ```
@@ -64,7 +71,7 @@ When a command is received from an authorized user, the bot executes a correspon
 
     *Note: You can get an API key from [OpenRouter.ai](https://openrouter.ai/) or [Google AI Studio](https://aistudio.google.com/api-keys) for Gemini.*
 
-5.  **Enable and Start the Services:**
+6.  **Enable and Start the Services:**
     Run the following commands to enable and start the services:
 
     ```bash
